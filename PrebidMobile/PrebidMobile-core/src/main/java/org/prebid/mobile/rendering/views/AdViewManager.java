@@ -35,6 +35,7 @@ import org.prebid.mobile.rendering.loading.TransactionManager;
 import org.prebid.mobile.rendering.loading.TransactionManagerListener;
 import org.prebid.mobile.rendering.models.AbstractCreative;
 import org.prebid.mobile.rendering.models.AdDetails;
+import org.prebid.mobile.rendering.models.CreativeModelsMaker;
 import org.prebid.mobile.rendering.models.HTMLCreative;
 import org.prebid.mobile.rendering.models.internal.InternalFriendlyObstruction;
 import org.prebid.mobile.rendering.models.internal.InternalPlayerState;
@@ -373,6 +374,21 @@ public class AdViewManager implements CreativeViewListener, TransactionManagerLi
         this.adConfiguration = adConfiguration;
         resetTransactionState();
         transactionManager.fetchVideoTransaction(adConfiguration, vastXml);
+    }
+
+    public void loadCreativeModels(AdUnitConfiguration adConfiguration, CreativeModelsMaker.Result result) {
+        this.adConfiguration = adConfiguration;
+        resetTransactionState();
+
+        if (result == null) {
+            adViewListener.failedToLoad(new AdException(
+                    AdException.INTERNAL_ERROR,
+                    "loadCreativeModels - Result is null"
+            ));
+            return;
+        }
+
+        transactionManager.onCreativeModelReady(result);
     }
 
     private void handleVideoCreativeComplete(AbstractCreative creative) {

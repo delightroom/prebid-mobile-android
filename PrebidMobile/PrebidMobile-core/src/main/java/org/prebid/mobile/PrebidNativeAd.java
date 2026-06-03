@@ -57,6 +57,7 @@ public class PrebidNativeAd {
     private PrebidNativeAdEventListener listener;
     private ArrayList<ImpressionTracker> impressionTrackers;
     private ArrayList<ClickTracker> clickTrackers;
+    private DaroViewabilityListener daroViewabilityListener;
     private String winEvent;
     private String impEvent;
     @Nullable
@@ -177,6 +178,117 @@ public class PrebidNativeAd {
             }
         }
         return null;
+    }
+
+    public static PrebidNativeAd createForExternalOwner(String adm) {
+        return createForExternalOwner(adm, null);
+    }
+
+    public static PrebidNativeAd createForExternalOwner(String adm, @Nullable String auctionPrice) {
+        if (TextUtils.isEmpty(adm)) {
+            return null;
+        }
+
+        try {
+            JSONObject admJson = new JSONObject(adm);
+            JSONObject nativeObj;
+            if (admJson.has("native")) {
+                nativeObj = admJson.getJSONObject("native");
+            } else {
+                nativeObj = admJson;
+            }
+
+            JSONArray asset = nativeObj.getJSONArray("assets");
+            final PrebidNativeAd ad = new PrebidNativeAd();
+            for (int i = 0; i < asset.length(); i++) {
+                JSONObject adObject = asset.getJSONObject(i);
+                if (adObject.has("title")) {
+                    JSONObject title = adObject.getJSONObject("title");
+                    if (title.has("text")) {
+                        String titleText = title.getString("text");
+                        if (!titleText.isEmpty()) {
+                            ad.addTitle(new NativeTitle(titleText));
+                        }
+                    } else {
+                        LogUtil.warning(TAG, "Json title object doesn't have text field");
+                    }
+                }
+                if (adObject.has("data")) {
+                    JSONObject data = adObject.getJSONObject("data");
+
+                    if (data.has("value")) {
+                        int type = 0;
+                        if (data.has("type")) {
+                            type = data.optInt("type");
+                        }
+                        String value = data.getString("value");
+                        ad.addData(new NativeData(type, value));
+                    } else {
+                        LogUtil.warning(TAG, "Json data object doesn't have type or value field");
+                    }
+                }
+
+                if (adObject.has("img")) {
+                    JSONObject img = adObject.getJSONObject("img");
+                    if (img.has("url")) {
+                        int type = 0;
+                        if (img.has("type")) {
+                            type = img.optInt("type");
+                        }
+                        String url = img.getString("url");
+                        ad.addImage(new NativeImage(type, url));
+                    } else {
+                        LogUtil.warning(TAG, "Json image object doesn't have url or type field");
+                    }
+                }
+            }
+
+            if (nativeObj.has("link")) {
+                JSONObject link = nativeObj.getJSONObject("link");
+                if (link.has("url")) {
+                    ad.setClickUrl(replaceAuctionPrice(link.getString("url"), auctionPrice));
+                }
+
+                if (link.has("clicktrackers")) {
+                    JSONArray clicktrackers = link.getJSONArray("clicktrackers");
+                    if (clicktrackers.length() > 0) {
+                        ad.click_trackers = new ArrayList<>();
+                        for (int count = 0; count < clicktrackers.length(); count++) {
+                            ad.click_trackers.add(replaceAuctionPrice(clicktrackers.getString(count), auctionPrice));
+                        }
+                    }
+                }
+            }
+
+            if (nativeObj.has("eventtrackers")) {
+                JSONArray eventtrackers = nativeObj.getJSONArray("eventtrackers");
+                if (eventtrackers.length() > 0) {
+                    ad.imp_trackers = new ArrayList<>();
+                    for (int count = 0; count < eventtrackers.length(); count++) {
+                        JSONObject eventtracker = eventtrackers.getJSONObject(count);
+                        if (eventtracker.has("url")) {
+                            ad.imp_trackers.add(replaceAuctionPrice(eventtracker.getString("url"), auctionPrice));
+                        }
+                    }
+                }
+            }
+
+            if (nativeObj.has("privacy")) {
+                ad.setPrivacyUrl(nativeObj.getString("privacy"));
+            }
+
+            return ad;
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    private static String replaceAuctionPrice(String url, @Nullable String auctionPrice) {
+        if (auctionPrice != null && url.contains("{AUCTION_PRICE}")) {
+            return url.replace("{AUCTION_PRICE}", auctionPrice);
+        }
+        return url;
     }
 
     private static void parseEvents(
@@ -350,6 +462,15 @@ public class PrebidNativeAd {
         return false;
     }
 
+    public void enableDaroViewabilityImpression() {
+        if (visibilityDetector == null || daroViewabilityListener != null) {
+            return;
+        }
+
+        daroViewabilityListener = new DaroViewabilityListener();
+        visibilityDetector.addVisibilityListener(daroViewabilityListener);
+    }
+
     private void createImpressionTrackers(View view) {
         ArrayList<String> combinedImpTrackers = new ArrayList<>();
         if (imp_trackers != null) {
@@ -370,6 +491,34 @@ public class PrebidNativeAd {
                 }
             });
             impressionTrackers.add(impressionTracker);
+        }
+    }
+
+    private class DaroViewabilityListener implements VisibilityDetector.VisibilityListener {
+        private long elapsedTime = 0;
+        private boolean fired = false;
+
+        @Override
+        public void onVisibilityChanged(boolean visible) {
+            if (fired) {
+                return;
+            }
+
+            if (visible) {
+                elapsedTime += VisibilityDetector.VISIBILITY_THROTTLE_MILLIS;
+            } else {
+                elapsedTime = 0;
+            }
+
+            if (elapsedTime >= Util.NATIVE_AD_VISIBLE_PERIOD_MILLIS) {
+                fired = true;
+                if (listener != null) {
+                    listener.onAdBecameViewable();
+                }
+                if (visibilityDetector != null) {
+                    visibilityDetector.removeVisibilityListener(this);
+                }
+            }
         }
     }
 

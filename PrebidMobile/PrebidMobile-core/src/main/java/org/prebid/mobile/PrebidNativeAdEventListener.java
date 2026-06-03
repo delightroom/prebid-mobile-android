@@ -35,6 +35,12 @@ public interface PrebidNativeAdEventListener {
     void onAdImpression();
 
     /**
+     * Callback method for the IAB viewable impression moment.
+     */
+    default void onAdBecameViewable() {
+    }
+
+    /**
      * Callback method for Ad's click event
      */
     void onAdExpired();

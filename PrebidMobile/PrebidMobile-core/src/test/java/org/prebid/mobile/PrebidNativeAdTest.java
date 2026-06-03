@@ -5,7 +5,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.app.Application;
@@ -151,6 +155,115 @@ public class PrebidNativeAdTest {
         }
     }
 
+    @Test
+    public void createForExternalOwner_parsesBuyerTrackers_andSuppressesPbsServerNotices() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(externalOwnerAdm(true));
+
+        assertNotNull(nativeAd);
+        assertEquals("External Title", nativeAd.getTitle());
+        assertEquals("https://example.com/icon.png", nativeAd.getIconUrl());
+        assertEquals("https://example.com/main.png", nativeAd.getImageUrl());
+        assertEquals("Install", nativeAd.getCallToAction());
+        assertEquals("External body", nativeAd.getDescription());
+        assertEquals("Daro", nativeAd.getSponsoredBy());
+        assertEquals("https://example.com/click", nativeAd.getClickUrl());
+        assertEquals("https://example.com/privacy", nativeAd.getPrivacyUrl());
+        assertNull(nativeAd.getWinEvent());
+        assertNull(nativeAd.getImpEvent());
+
+        ArrayList<String> admImpressionTrackers = reflectAdmImpressionTrackers(nativeAd);
+        ArrayList<String> clickTrackers = reflectClickTrackers(nativeAd);
+        assertNotNull(admImpressionTrackers);
+        assertNotNull(clickTrackers);
+        assertEquals(1, admImpressionTrackers.size());
+        assertEquals(1, clickTrackers.size());
+        assertEquals("https://buyer.example/imp", admImpressionTrackers.get(0));
+        assertEquals("https://buyer.example/click", clickTrackers.get(0));
+    }
+
+    @Test
+    public void createForExternalOwner_registerView_buildsOnlyBuyerImpressionTrackers() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(externalOwnerAdm(true));
+        PrebidNativeAdEventListener listener = mock(PrebidNativeAdEventListener.class);
+
+        assertTrue(nativeAd.registerView(createViewMock(), mock(List.class), listener));
+
+        ArrayList<ImpressionTracker> trackerObjects = reflectImpressionTrackerObjects(nativeAd);
+        assertEquals(1, trackerObjects.size());
+        assertEquals("https://buyer.example/imp", reflectImpressionTrackerUrl(trackerObjects.get(0)));
+    }
+
+    @Test
+    public void createForExternalOwner_supportsNativeWrapper() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner("{\"native\":" + externalOwnerAdm(true) + "}");
+
+        assertNotNull(nativeAd);
+        assertEquals("External Title", nativeAd.getTitle());
+        assertNull(nativeAd.getWinEvent());
+        assertNull(nativeAd.getImpEvent());
+    }
+
+    @Test
+    public void enableDaroViewabilityImpression_trackerFree_firesViewableOnce_neverImpression() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(externalOwnerAdm(false));
+        PrebidNativeAdEventListener listener = mock(PrebidNativeAdEventListener.class);
+
+        assertTrue(nativeAd.registerView(createViewMock(), mock(List.class), listener));
+        assertEquals(0, reflectImpressionTrackerObjects(nativeAd).size());
+
+        nativeAd.enableDaroViewabilityImpression();
+
+        VisibilityDetector.VisibilityListener daroListener = reflectDaroVisibilityListener(nativeAd);
+        for (int i = 0; i < 6; i++) {
+            daroListener.onVisibilityChanged(true);
+        }
+        daroListener.onVisibilityChanged(true);
+
+        verify(listener, times(1)).onAdBecameViewable();
+        verify(listener, never()).onAdImpression();
+    }
+
+    @Test
+    public void enableDaroViewabilityImpression_resetsOnHidden() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(externalOwnerAdm(false));
+        PrebidNativeAdEventListener listener = mock(PrebidNativeAdEventListener.class);
+
+        assertTrue(nativeAd.registerView(createViewMock(), mock(List.class), listener));
+        nativeAd.enableDaroViewabilityImpression();
+
+        VisibilityDetector.VisibilityListener daroListener = reflectDaroVisibilityListener(nativeAd);
+        for (int i = 0; i < 3; i++) {
+            daroListener.onVisibilityChanged(true);
+        }
+        daroListener.onVisibilityChanged(false);
+        for (int i = 0; i < 3; i++) {
+            daroListener.onVisibilityChanged(true);
+        }
+        verify(listener, never()).onAdBecameViewable();
+
+        daroListener.onVisibilityChanged(true);
+
+        verify(listener, times(1)).onAdBecameViewable();
+    }
+
+    @Test
+    public void createForExternalOwner_withAuctionPrice_substitutesMacro() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(externalOwnerAdmWithPriceMacro(), "1.23");
+
+        assertEquals("https://example.com/click?price=1.23", nativeAd.getClickUrl());
+        assertEquals("https://buyer.example/click?price=1.23", reflectClickTrackers(nativeAd).get(0));
+        assertEquals("https://buyer.example/imp?price=1.23", reflectAdmImpressionTrackers(nativeAd).get(0));
+    }
+
+    @Test
+    public void createForExternalOwner_withoutAuctionPrice_leavesMacroRaw() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(externalOwnerAdmWithPriceMacro());
+
+        assertEquals("https://example.com/click?price={AUCTION_PRICE}", nativeAd.getClickUrl());
+        assertEquals("https://buyer.example/click?price={AUCTION_PRICE}", reflectClickTrackers(nativeAd).get(0));
+        assertEquals("https://buyer.example/imp?price={AUCTION_PRICE}", reflectAdmImpressionTrackers(nativeAd).get(0));
+    }
+
     private PrebidNativeAd nativeAdFromFile(String path) {
         String resource = ResourceUtils.convertResourceToString(path);
         String cacheId = CacheManager.save(resource);
@@ -178,4 +291,45 @@ public class PrebidNativeAdTest {
         return Reflection.getFieldOf(tracker, "url");
     }
 
+    private ArrayList<String> reflectClickTrackers(PrebidNativeAd ad) {
+        return Reflection.getFieldOf(ad, "click_trackers");
+    }
+
+    private VisibilityDetector.VisibilityListener reflectDaroVisibilityListener(PrebidNativeAd ad) {
+        VisibilityDetector visibilityDetector = Reflection.getFieldOf(ad, "visibilityDetector");
+        ArrayList<VisibilityDetector.VisibilityListener> listeners = Reflection.getFieldOf(visibilityDetector, "listeners");
+        for (VisibilityDetector.VisibilityListener listener : listeners) {
+            if (listener.getClass().getSimpleName().contains("DaroViewabilityListener")) {
+                return listener;
+            }
+        }
+        return null;
+    }
+
+    private String externalOwnerAdm(boolean includeTrackers) {
+        String trackers = "";
+        if (includeTrackers) {
+            trackers = ",\"eventtrackers\":[{\"url\":\"https://buyer.example/imp\"}]"
+                    + ",\"link\":{\"url\":\"https://example.com/click\",\"clicktrackers\":[\"https://buyer.example/click\"]}";
+        } else {
+            trackers = ",\"link\":{\"url\":\"https://example.com/click\"}";
+        }
+        return "{\"assets\":["
+                + "{\"title\":{\"text\":\"External Title\"}},"
+                + "{\"img\":{\"type\":1,\"url\":\"https://example.com/icon.png\"}},"
+                + "{\"img\":{\"type\":3,\"url\":\"https://example.com/main.png\"}},"
+                + "{\"data\":{\"type\":1,\"value\":\"Daro\"}},"
+                + "{\"data\":{\"type\":2,\"value\":\"External body\"}},"
+                + "{\"data\":{\"type\":12,\"value\":\"Install\"}}"
+                + "]"
+                + trackers
+                + ",\"privacy\":\"https://example.com/privacy\"}";
+    }
+
+    private String externalOwnerAdmWithPriceMacro() {
+        return "{\"assets\":[{\"title\":{\"text\":\"External Title\"}}],"
+                + "\"eventtrackers\":[{\"url\":\"https://buyer.example/imp?price={AUCTION_PRICE}\"}],"
+                + "\"link\":{\"url\":\"https://example.com/click?price={AUCTION_PRICE}\","
+                + "\"clicktrackers\":[\"https://buyer.example/click?price={AUCTION_PRICE}\"]}}";
+    }
 }

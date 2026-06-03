@@ -37,6 +37,7 @@ import org.prebid.mobile.rendering.loading.Transaction;
 import org.prebid.mobile.rendering.loading.TransactionManager;
 import org.prebid.mobile.rendering.models.AbstractCreative;
 import org.prebid.mobile.rendering.models.AdDetails;
+import org.prebid.mobile.rendering.models.CreativeModelsMaker;
 import org.prebid.mobile.rendering.models.internal.InternalPlayerState;
 import org.prebid.mobile.rendering.networking.tracking.TrackingManager;
 import org.prebid.mobile.rendering.video.*;
@@ -437,6 +438,43 @@ public class AdViewManagerTest {
         verify(mockVideoCreative).updateAdView(mockCallView);
         verify(mockVideoCreativeView).mute();
         verify(mockVideoCreative).onPlayerStateChanged(InternalPlayerState.NORMAL);
+    }
+
+    @Test
+    public void loadCreativeModels_routesResultIntoSameTransactionPath_withoutBidOrVideoFetch()
+    throws IllegalAccessException {
+        TransactionManager mockTransactionManager = mock(TransactionManager.class);
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, mockTransactionManager);
+        AdUnitConfiguration config = new AdUnitConfiguration();
+        CreativeModelsMaker.Result result = new CreativeModelsMaker.Result();
+
+        adViewManager.loadCreativeModels(config, result);
+
+        verify(mockTransactionManager).resetState();
+        verify(mockTransactionManager).onCreativeModelReady(result);
+        verify(mockTransactionManager, never()).fetchBidTransaction(any(AdUnitConfiguration.class), any());
+        verify(mockTransactionManager, never()).fetchVideoTransaction(any(AdUnitConfiguration.class), anyString());
+        assertSame(config, adViewManager.getAdConfiguration());
+    }
+
+    @Test
+    public void loadCreativeModels_withNullResult_failsGracefullyWithoutNpe()
+    throws IllegalAccessException {
+        TransactionManager mockTransactionManager = mock(TransactionManager.class);
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, mockTransactionManager);
+        AdUnitConfiguration config = new AdUnitConfiguration();
+
+        adViewManager.loadCreativeModels(config, null);
+
+        ArgumentCaptor exceptionCaptor = ArgumentCaptor.forClass(AdException.class);
+        verify(mockTransactionManager).resetState();
+        verify(mockTransactionManager, never()).onCreativeModelReady(any());
+        verify(mockAdViewListener).failedToLoad((AdException) exceptionCaptor.capture());
+        assertSame(config, adViewManager.getAdConfiguration());
+        assertEquals(
+                "SDK internal error: loadCreativeModels - Result is null",
+                ((AdException) exceptionCaptor.getValue()).getMessage()
+        );
     }
 
     @Test
