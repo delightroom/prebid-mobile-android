@@ -23,22 +23,22 @@ import android.webkit.WebView;
 
 import androidx.annotation.Nullable;
 
-import com.iab.omid.library.prebidorg.Omid;
-import com.iab.omid.library.prebidorg.ScriptInjector;
-import com.iab.omid.library.prebidorg.adsession.AdEvents;
-import com.iab.omid.library.prebidorg.adsession.AdSession;
-import com.iab.omid.library.prebidorg.adsession.AdSessionConfiguration;
-import com.iab.omid.library.prebidorg.adsession.AdSessionContext;
-import com.iab.omid.library.prebidorg.adsession.CreativeType;
-import com.iab.omid.library.prebidorg.adsession.FriendlyObstructionPurpose;
-import com.iab.omid.library.prebidorg.adsession.ImpressionType;
-import com.iab.omid.library.prebidorg.adsession.Owner;
-import com.iab.omid.library.prebidorg.adsession.Partner;
-import com.iab.omid.library.prebidorg.adsession.VerificationScriptResource;
-import com.iab.omid.library.prebidorg.adsession.media.InteractionType;
-import com.iab.omid.library.prebidorg.adsession.media.MediaEvents;
-import com.iab.omid.library.prebidorg.adsession.media.Position;
-import com.iab.omid.library.prebidorg.adsession.media.VastProperties;
+import com.iab.omid.library.delightroom.Omid;
+import com.iab.omid.library.delightroom.ScriptInjector;
+import com.iab.omid.library.delightroom.adsession.AdEvents;
+import com.iab.omid.library.delightroom.adsession.AdSession;
+import com.iab.omid.library.delightroom.adsession.AdSessionConfiguration;
+import com.iab.omid.library.delightroom.adsession.AdSessionContext;
+import com.iab.omid.library.delightroom.adsession.CreativeType;
+import com.iab.omid.library.delightroom.adsession.FriendlyObstructionPurpose;
+import com.iab.omid.library.delightroom.adsession.ImpressionType;
+import com.iab.omid.library.delightroom.adsession.Owner;
+import com.iab.omid.library.delightroom.adsession.Partner;
+import com.iab.omid.library.delightroom.adsession.VerificationScriptResource;
+import com.iab.omid.library.delightroom.adsession.media.InteractionType;
+import com.iab.omid.library.delightroom.adsession.media.MediaEvents;
+import com.iab.omid.library.delightroom.adsession.media.Position;
+import com.iab.omid.library.delightroom.adsession.media.VastProperties;
 
 import org.prebid.mobile.LogUtil;
 import org.prebid.mobile.TargetingParams;
