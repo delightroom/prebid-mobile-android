@@ -17,6 +17,7 @@ import org.prebid.mobile.rendering.sdk.scripts.JsScriptStorageImpl;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Collections;
 import java.util.SortedSet;
@@ -51,8 +52,8 @@ public class JsScriptsDownloader {
 
 
     public boolean areScriptsDownloadedAlready() {
-        return isFileAlreadyDownloaded(JsScriptData.openMeasurementData) &&
-                isFileAlreadyDownloaded(JsScriptData.mraidData);
+        return isScriptAvailable(JsScriptData.openMeasurementData) &&
+                isScriptAvailable(JsScriptData.mraidData);
     }
 
     public void downloadScripts(DownloadListenerCreator listener) {
@@ -66,18 +67,29 @@ public class JsScriptsDownloader {
 
     @Nullable
     public String readFile(JsScriptData fileData) {
+        File file = storage.getInnerFile(fileData.getPath());
+        if (storage.isFileAlreadyDownloaded(file, fileData.getPath())) {
+            try {
+                return convertFileToString(file);
+            } catch (Throwable throwable) {
+                LogUtil.error(TAG, "Can't read file: " + fileData.getPath());
+            }
+        }
+
         try {
-            File file = storage.getInnerFile(fileData.getPath());
-            return convertFileToString(file);
+            return convertStreamToString(storage.openAsset(fileData.getAssetPath()));
         } catch (Throwable throwable) {
-            LogUtil.error(TAG, "Can't read file: " + fileData.getPath());
+            LogUtil.error(TAG, "Can't read bundled asset: " + fileData.getAssetPath());
         }
         return null;
     }
 
 
     private static String convertFileToString(File file) throws Exception {
-        FileInputStream is = new FileInputStream(file);
+        return convertStreamToString(new FileInputStream(file));
+    }
+
+    private static String convertStreamToString(InputStream is) throws Exception {
         BufferedReader reader = new BufferedReader(new InputStreamReader(is));
         StringBuilder sb = new StringBuilder();
         String line;
@@ -107,6 +119,10 @@ public class JsScriptsDownloader {
         File file = storage.getInnerFile(fileData.getPath());
 
         return storage.isFileAlreadyDownloaded(file, fileData.getPath());
+    }
+
+    private boolean isScriptAvailable(JsScriptData fileData) {
+        return isFileAlreadyDownloaded(fileData) || storage.isAssetAvailable(fileData.getAssetPath());
     }
 
     public static class ScriptDownloadListener implements FileDownloadListener {

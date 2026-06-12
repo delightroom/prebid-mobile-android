@@ -74,6 +74,18 @@ public class OmAdSessionManager {
     private Partner partner;
     private AdSession adSession;
 
+    public static final class NativeDisplayVerificationResource {
+        private final String omidJsUrl;
+        private final String vendorKey;
+        private final String verificationParameters;
+
+        public NativeDisplayVerificationResource(String omidJsUrl, String vendorKey, String verificationParameters) {
+            this.omidJsUrl = omidJsUrl;
+            this.vendorKey = vendorKey;
+            this.verificationParameters = verificationParameters;
+        }
+    }
+
     private OmAdSessionManager(JSLibraryManager instance) {
         jsLibraryManager = instance;
         initPartner();
@@ -136,6 +148,32 @@ public class OmAdSessionManager {
         initAdSession(adSessionConfiguration, adSessionContext);
         initAdEvents();
         initMediaAdEvents();
+    }
+
+    public boolean initNativeDisplayAdSession(
+            View adView,
+            List<NativeDisplayVerificationResource> verifications,
+            @Nullable String contentUrl
+    ) {
+        Owner owner = Owner.NATIVE;
+        AdSessionConfiguration adSessionConfiguration = createAdSessionConfiguration(CreativeType.NATIVE_DISPLAY,
+                                                                                     ImpressionType.ONE_PIXEL,
+                                                                                     owner,
+                                                                                     null);
+        try {
+            AdSessionContext adSessionContext = createAdSessionContext(
+                    createVerificationScriptResources(verifications),
+                    contentUrl
+            );
+            initAdSession(adSessionConfiguration, adSessionContext);
+            initAdEvents();
+            registerAdView(adView);
+            return adSession != null && adEvents != null;
+        }
+        catch (MalformedURLException | IllegalArgumentException e) {
+            LogUtil.error(TAG, "Failure initNativeDisplayAdSession: " + Log.getStackTraceString(e));
+            return false;
+        }
     }
 
     /**
@@ -550,6 +588,28 @@ public class OmAdSessionManager {
             VerificationScriptResource verificationScriptResource =
                 VerificationScriptResource
                     .createVerificationScriptResourceWithParameters(vendorKey, url, params);
+            verificationScriptResources.add(verificationScriptResource);
+        }
+
+        return verificationScriptResources;
+    }
+
+    private List<VerificationScriptResource> createVerificationScriptResources(
+            List<NativeDisplayVerificationResource> verifications
+    ) throws MalformedURLException, IllegalArgumentException {
+        if (verifications == null || verifications.isEmpty()) {
+            return null;
+        }
+
+        List<VerificationScriptResource> verificationScriptResources = new ArrayList<>();
+        for (NativeDisplayVerificationResource verification : verifications) {
+            final URL url = new URL(verification.omidJsUrl);
+            VerificationScriptResource verificationScriptResource =
+                    VerificationScriptResource.createVerificationScriptResourceWithParameters(
+                            verification.vendorKey,
+                            url,
+                            verification.verificationParameters
+                    );
             verificationScriptResources.add(verificationScriptResource);
         }
 

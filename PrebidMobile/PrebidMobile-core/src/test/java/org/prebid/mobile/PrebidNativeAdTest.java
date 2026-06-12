@@ -18,6 +18,7 @@ import android.view.View;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.prebid.mobile.rendering.session.manager.OmAdSessionManager;
 import org.prebid.mobile.reflection.Reflection;
 import org.prebid.mobile.test.utils.ResourceUtils;
 import org.robolectric.RobolectricTestRunner;
@@ -37,18 +38,24 @@ public class PrebidNativeAdTest {
         assertEquals("https://prebid.qa.openx.net//event?t=imp&b=5f6bec03-a3ae-4084-b2ae-dedfb0ac01ff&a=b4eb1475-4e3d-4186-97b7-25b6a6cf8618&bidder=openx&ts=1643899069308", nativeAd.getImpEvent());
 
         ArrayList<String> admImpressionTrackers = reflectAdmImpressionTrackers(nativeAd);
-        assertNotNull(admImpressionTrackers);
-        assertEquals(1, admImpressionTrackers.size());
-        assertThat(admImpressionTrackers, hasItem("https://s3-us-west-2.amazonaws.com/omsdk-files/compliance-js/omid-validation-verification-script-v1.js"));
+        assertNull(admImpressionTrackers);
+
+        ArrayList<OmAdSessionManager.NativeDisplayVerificationResource> nativeOmidResources =
+                reflectNativeOmidVerificationResources(nativeAd);
+        assertNotNull(nativeOmidResources);
+        assertEquals(1, nativeOmidResources.size());
+        assertEquals(
+                "https://s3-us-west-2.amazonaws.com/omsdk-files/compliance-js/omid-validation-verification-script-v1.js",
+                Reflection.getFieldOf(nativeOmidResources.get(0), "omidJsUrl")
+        );
 
 
         nativeAd.registerView(createViewMock(), mock(List.class), mock(PrebidNativeAdEventListener.class));
 
 
         ArrayList<ImpressionTracker> trackerObjects = reflectImpressionTrackerObjects(nativeAd);
-        assertEquals(2, trackerObjects.size());
-        assertEquals("https://s3-us-west-2.amazonaws.com/omsdk-files/compliance-js/omid-validation-verification-script-v1.js", reflectImpressionTrackerUrl(trackerObjects.get(0)));
-        assertEquals("https://prebid.qa.openx.net//event?t=imp&b=5f6bec03-a3ae-4084-b2ae-dedfb0ac01ff&a=b4eb1475-4e3d-4186-97b7-25b6a6cf8618&bidder=openx&ts=1643899069308", reflectImpressionTrackerUrl(trackerObjects.get(1)));
+        assertEquals(1, trackerObjects.size());
+        assertEquals("https://prebid.qa.openx.net//event?t=imp&b=5f6bec03-a3ae-4084-b2ae-dedfb0ac01ff&a=b4eb1475-4e3d-4186-97b7-25b6a6cf8618&bidder=openx&ts=1643899069308", reflectImpressionTrackerUrl(trackerObjects.get(0)));
     }
 
     @Test
@@ -194,6 +201,24 @@ public class PrebidNativeAdTest {
     }
 
     @Test
+    public void createForExternalOwner_separatesNativeOmidVerificationTrackers() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(externalOwnerAdmWithNativeOmidTracker());
+
+        ArrayList<String> admImpressionTrackers = reflectAdmImpressionTrackers(nativeAd);
+        ArrayList<OmAdSessionManager.NativeDisplayVerificationResource> nativeOmidResources =
+                reflectNativeOmidVerificationResources(nativeAd);
+
+        assertNotNull(admImpressionTrackers);
+        assertEquals(1, admImpressionTrackers.size());
+        assertEquals("https://buyer.example/imp", admImpressionTrackers.get(0));
+        assertNotNull(nativeOmidResources);
+        assertEquals(1, nativeOmidResources.size());
+        assertEquals("https://measurement.example/omid.js", Reflection.getFieldOf(nativeOmidResources.get(0), "omidJsUrl"));
+        assertEquals("measurement-vendor", Reflection.getFieldOf(nativeOmidResources.get(0), "vendorKey"));
+        assertEquals("verification-data", Reflection.getFieldOf(nativeOmidResources.get(0), "verificationParameters"));
+    }
+
+    @Test
     public void createForExternalOwner_supportsNativeWrapper() {
         PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner("{\"native\":" + externalOwnerAdm(true) + "}");
 
@@ -295,6 +320,10 @@ public class PrebidNativeAdTest {
         return Reflection.getFieldOf(ad, "click_trackers");
     }
 
+    private ArrayList<OmAdSessionManager.NativeDisplayVerificationResource> reflectNativeOmidVerificationResources(PrebidNativeAd ad) {
+        return Reflection.getFieldOf(ad, "nativeOmidVerificationResources");
+    }
+
     private VisibilityDetector.VisibilityListener reflectDaroVisibilityListener(PrebidNativeAd ad) {
         VisibilityDetector visibilityDetector = Reflection.getFieldOf(ad, "visibilityDetector");
         ArrayList<VisibilityDetector.VisibilityListener> listeners = Reflection.getFieldOf(visibilityDetector, "listeners");
@@ -331,5 +360,15 @@ public class PrebidNativeAdTest {
                 + "\"eventtrackers\":[{\"url\":\"https://buyer.example/imp?price={AUCTION_PRICE}\"}],"
                 + "\"link\":{\"url\":\"https://example.com/click?price={AUCTION_PRICE}\","
                 + "\"clicktrackers\":[\"https://buyer.example/click?price={AUCTION_PRICE}\"]}}";
+    }
+
+    private String externalOwnerAdmWithNativeOmidTracker() {
+        return "{\"assets\":[{\"title\":{\"text\":\"External Title\"}}],"
+                + "\"eventtrackers\":["
+                + "{\"event\":1,\"method\":1,\"url\":\"https://buyer.example/imp\"},"
+                + "{\"event\":555,\"method\":2,\"url\":\"https://measurement.example/omid.js\","
+                + "\"ext\":{\"vendorKey\":\"measurement-vendor\",\"verification_parameters\":\"verification-data\"}}"
+                + "],"
+                + "\"link\":{\"url\":\"https://example.com/click\"}}";
     }
 }

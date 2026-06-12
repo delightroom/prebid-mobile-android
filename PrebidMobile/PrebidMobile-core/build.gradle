@@ -25,6 +25,11 @@ android {
             systemProperty 'robolectric.invokedynamic.enable', 'false'
         }
     }
+    sourceSets {
+        main {
+            assets.srcDirs += ['PBMJSLibraries']
+        }
+    }
 }
 
 

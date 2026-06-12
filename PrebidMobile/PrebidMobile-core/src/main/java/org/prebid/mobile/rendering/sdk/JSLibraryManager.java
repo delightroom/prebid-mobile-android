@@ -51,12 +51,8 @@ public class JSLibraryManager {
 
     public boolean checkIfScriptsDownloadedAndStartDownloadingIfNot() {
         if (scriptsDownloader.areScriptsDownloadedAlready()) {
-            if (!OMSDKscirpt.isEmpty() && !MRAIDscript.isEmpty()) {
-                return true;
-            }
-
-            startScriptReadingTask();
-            return false;
+            readScriptsIfNeeded();
+            return !OMSDKscirpt.isEmpty() && !MRAIDscript.isEmpty();
         }
 
         scriptsDownloader.downloadScripts(
@@ -76,6 +72,18 @@ public class JSLibraryManager {
                 }
             }
         }
+    }
+
+    private synchronized void readScriptsIfNeeded() {
+        if (!OMSDKscirpt.isEmpty() && !MRAIDscript.isEmpty()) {
+            return;
+        }
+
+        String openMeasurementScript = scriptsDownloader.readFile(JsScriptData.openMeasurementData);
+        String mraidScript = scriptsDownloader.readFile(JsScriptData.mraidData);
+
+        OMSDKscirpt = openMeasurementScript != null ? openMeasurementScript : "";
+        MRAIDscript = mraidScript != null ? mraidScript : "";
     }
 
     public String getMRAIDScript() {
@@ -106,8 +114,8 @@ public class JSLibraryManager {
             String openMeasurementScript = scriptsDownloader.readFile(JsScriptData.openMeasurementData);
             String mraidScript = scriptsDownloader.readFile(JsScriptData.mraidData);
 
-            jsLibraryManager.OMSDKscirpt = openMeasurementScript;
-            jsLibraryManager.MRAIDscript = mraidScript;
+            jsLibraryManager.OMSDKscirpt = openMeasurementScript != null ? openMeasurementScript : "";
+            jsLibraryManager.MRAIDscript = mraidScript != null ? mraidScript : "";
             alreadyRunning.set(false);
         }
 

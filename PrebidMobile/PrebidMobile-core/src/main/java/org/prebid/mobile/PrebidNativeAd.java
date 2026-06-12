@@ -28,6 +28,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.prebid.mobile.rendering.bidding.events.EventsNotifier;
+import org.prebid.mobile.rendering.sdk.JSLibraryManager;
+import org.prebid.mobile.rendering.session.manager.OmAdSessionManager;
 import org.prebid.mobile.rendering.utils.helpers.ExternalViewerUtils;
 
 import java.lang.ref.WeakReference;
@@ -40,6 +42,11 @@ import java.util.List;
 public class PrebidNativeAd {
 
     private static final String TAG = "PrebidNativeAd";
+    private static final int NATIVE_EVENT_OMID = 555;
+    private static final int NATIVE_METHOD_JS = 2;
+    private static final String EXT_VENDOR_KEY = "vendorKey";
+    private static final String EXT_VERIFICATION_PARAMETERS = "verification_parameters";
+    private static final String EXT_VERIFICATION_PARAMETERS_CAMEL_CASE = "verificationParameters";
 
     private boolean impressionIsNotNotified = true;
 
@@ -60,6 +67,11 @@ public class PrebidNativeAd {
     private DaroViewabilityListener daroViewabilityListener;
     private String winEvent;
     private String impEvent;
+    @Nullable
+    private ArrayList<OmAdSessionManager.NativeDisplayVerificationResource> nativeOmidVerificationResources;
+    @Nullable
+    private OmAdSessionManager nativeOmidSessionManager;
+    private boolean nativeOmidImpressionRegistered;
     @Nullable
     private String privacyUrl;
 
@@ -153,16 +165,10 @@ public class PrebidNativeAd {
                 if (nativeObj.has("eventtrackers")) {
                     JSONArray eventtrackers = nativeObj.getJSONArray("eventtrackers");
                     if (eventtrackers.length() > 0) {
-                        ad.imp_trackers = new ArrayList<>();
                         for (int count = 0; count < eventtrackers.length(); count++) {
                             JSONObject eventtracker = eventtrackers.getJSONObject(count);
-                            if (eventtracker.has("url")) {
-                                String impUrl = eventtracker.getString("url");
-                                if (impUrl.contains("{AUCTION_PRICE}") && details.has("price")) {
-                                    impUrl = impUrl.replace("{AUCTION_PRICE}", details.getString("price"));
-                                }
-                                ad.imp_trackers.add(impUrl);
-                            }
+                            String auctionPrice = details.has("price") ? details.getString("price") : null;
+                            ad.addEventTracker(eventtracker, auctionPrice);
                         }
                     }
                 }
@@ -263,12 +269,9 @@ public class PrebidNativeAd {
             if (nativeObj.has("eventtrackers")) {
                 JSONArray eventtrackers = nativeObj.getJSONArray("eventtrackers");
                 if (eventtrackers.length() > 0) {
-                    ad.imp_trackers = new ArrayList<>();
                     for (int count = 0; count < eventtrackers.length(); count++) {
                         JSONObject eventtracker = eventtrackers.getJSONObject(count);
-                        if (eventtracker.has("url")) {
-                            ad.imp_trackers.add(replaceAuctionPrice(eventtracker.getString("url"), auctionPrice));
-                        }
+                        ad.addEventTracker(eventtracker, auctionPrice);
                     }
                 }
             }
@@ -289,6 +292,65 @@ public class PrebidNativeAd {
             return url.replace("{AUCTION_PRICE}", auctionPrice);
         }
         return url;
+    }
+
+    private void addEventTracker(JSONObject eventtracker, @Nullable String auctionPrice) throws JSONException {
+        if (isNativeOmidVerificationTracker(eventtracker)) {
+            addNativeOmidVerificationResource(eventtracker, auctionPrice);
+            return;
+        }
+
+        if (!eventtracker.has("url")) {
+            return;
+        }
+
+        if (imp_trackers == null) {
+            imp_trackers = new ArrayList<>();
+        }
+        imp_trackers.add(replaceAuctionPrice(eventtracker.getString("url"), auctionPrice));
+    }
+
+    private boolean isNativeOmidVerificationTracker(JSONObject eventtracker) {
+        return eventtracker.optInt("event", -1) == NATIVE_EVENT_OMID
+                && eventtracker.optInt("method", -1) == NATIVE_METHOD_JS;
+    }
+
+    private void addNativeOmidVerificationResource(
+            JSONObject eventtracker,
+            @Nullable String auctionPrice
+    ) throws JSONException {
+        if (!eventtracker.has("url")) {
+            LogUtil.warning(TAG, "Native OMID eventtracker doesn't have url field");
+            return;
+        }
+
+        JSONObject ext = eventtracker.optJSONObject("ext");
+        if (ext == null) {
+            LogUtil.warning(TAG, "Native OMID eventtracker doesn't have ext field");
+            return;
+        }
+
+        String vendorKey = ext.optString(EXT_VENDOR_KEY, "");
+        String verificationParameters = ext.optString(EXT_VERIFICATION_PARAMETERS, "");
+        if (TextUtils.isEmpty(verificationParameters)) {
+            verificationParameters = ext.optString(EXT_VERIFICATION_PARAMETERS_CAMEL_CASE, "");
+        }
+
+        if (TextUtils.isEmpty(vendorKey) || TextUtils.isEmpty(verificationParameters)) {
+            LogUtil.warning(TAG, "Native OMID eventtracker has invalid verification resource");
+            return;
+        }
+
+        if (nativeOmidVerificationResources == null) {
+            nativeOmidVerificationResources = new ArrayList<>();
+        }
+        nativeOmidVerificationResources.add(
+                new OmAdSessionManager.NativeDisplayVerificationResource(
+                        replaceAuctionPrice(eventtracker.getString("url"), auctionPrice),
+                        vendorKey,
+                        replaceAuctionPrice(verificationParameters, auctionPrice)
+                )
+        );
     }
 
     private static void parseEvents(
@@ -445,6 +507,7 @@ public class PrebidNativeAd {
             }
 
             createImpressionTrackers(container);
+            startNativeOmidSession(container);
 
             registeredView = new WeakReference<>(container);
 
@@ -494,6 +557,66 @@ public class PrebidNativeAd {
         }
     }
 
+    private void startNativeOmidSession(View container) {
+        if (nativeOmidSessionManager != null
+                || nativeOmidVerificationResources == null
+                || nativeOmidVerificationResources.isEmpty()) {
+            return;
+        }
+
+        Context context = container.getContext();
+        if (context == null) {
+            return;
+        }
+
+        Context applicationContext = context.getApplicationContext();
+        if (applicationContext == null) {
+            applicationContext = context;
+        }
+
+        if (!OmAdSessionManager.activateOmSdk(applicationContext)) {
+            return;
+        }
+
+        JSLibraryManager jsLibraryManager = JSLibraryManager.getInstance(context);
+        boolean scriptsReady = jsLibraryManager.checkIfScriptsDownloadedAndStartDownloadingIfNot();
+        if (!scriptsReady && TextUtils.isEmpty(jsLibraryManager.getOMSDKScript())) {
+            LogUtil.warning(TAG, "Native OMID session skipped until OMSDK JS is available");
+            return;
+        }
+
+        OmAdSessionManager sessionManager = OmAdSessionManager.createNewInstance(jsLibraryManager);
+        if (sessionManager == null) {
+            return;
+        }
+
+        if (!sessionManager.initNativeDisplayAdSession(container, nativeOmidVerificationResources, null)) {
+            return;
+        }
+
+        sessionManager.startAdSession();
+        sessionManager.displayAdLoaded();
+        nativeOmidSessionManager = sessionManager;
+    }
+
+    private void registerNativeOmidImpression() {
+        if (nativeOmidImpressionRegistered || nativeOmidSessionManager == null) {
+            return;
+        }
+
+        nativeOmidImpressionRegistered = true;
+        nativeOmidSessionManager.registerImpression();
+    }
+
+    private void stopNativeOmidSession() {
+        if (nativeOmidSessionManager == null) {
+            return;
+        }
+
+        nativeOmidSessionManager.stopAdSession();
+        nativeOmidSessionManager = null;
+    }
+
     private class DaroViewabilityListener implements VisibilityDetector.VisibilityListener {
         private long elapsedTime = 0;
         private boolean fired = false;
@@ -512,6 +635,7 @@ public class PrebidNativeAd {
 
             if (elapsedTime >= Util.NATIVE_AD_VISIBLE_PERIOD_MILLIS) {
                 fired = true;
+                registerNativeOmidImpression();
                 if (listener != null) {
                     listener.onAdBecameViewable();
                 }
@@ -555,6 +679,19 @@ public class PrebidNativeAd {
         } catch (ActivityNotFoundException e) {
             return false;
         }
+    }
+
+    public void destroy() {
+        if (visibilityDetector != null) {
+            visibilityDetector.destroy();
+            visibilityDetector = null;
+        }
+        stopNativeOmidSession();
+        daroViewabilityListener = null;
+        registeredView = null;
+        impressionTrackers = null;
+        clickTrackers = null;
+        listener = null;
     }
 
     public String getWinEvent() {
@@ -603,13 +740,7 @@ public class PrebidNativeAd {
                 ad.listener.onAdExpired();
             }
             ad.expired = true;
-            if (ad.visibilityDetector != null) {
-                ad.visibilityDetector.destroy();
-                ad.visibilityDetector = null;
-            }
-            ad.impressionTrackers = null;
-            ad.clickTrackers = null;
-            ad.listener = null;
+            ad.destroy();
         }
 
     }

@@ -114,6 +114,7 @@ public final class DaroPrebidNativeAd implements DaroPrebidRenderHandle {
             return;
         }
         destroyed = true;
+        nativeAd.destroy();
         if (listener != null) {
             listener.destroyed();
             listener = null;
