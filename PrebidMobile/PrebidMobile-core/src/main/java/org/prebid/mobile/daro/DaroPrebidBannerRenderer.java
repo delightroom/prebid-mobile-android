@@ -1,9 +1,6 @@
 package org.prebid.mobile.daro;
 
 import android.content.Context;
-import android.graphics.Rect;
-import android.os.Handler;
-import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
 import androidx.annotation.NonNull;
@@ -23,16 +20,11 @@ import org.prebid.mobile.rendering.views.interstitial.InterstitialManager;
 import java.util.Collections;
 
 public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
-    private static final long VISIBILITY_CHECK_INTERVAL_MS = 100L;
-    private static final long IMPRESSION_VISIBLE_PERIOD_MS = 1000L;
-    private static final float IMPRESSION_VISIBLE_RATIO = 0.5f;
-
     private final Context context;
     private final ViewGroup container;
     private final DaroPrebidRenderListener listener;
     private final InterstitialManager interstitialManager = new InterstitialManager();
     private final AdViewManager adViewManager;
-    private final BannerViewabilityTracker viewabilityTracker;
     private boolean destroyed;
     private boolean impressionSent;
 
@@ -44,7 +36,6 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
         this.context = context;
         this.container = container;
         this.listener = listener;
-        this.viewabilityTracker = new BannerViewabilityTracker(container, this::notifyImpression);
         this.adViewManager = new AdViewManager(
             context,
             new AdViewManagerListener() {
@@ -67,15 +58,18 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
                         )
                     );
                     listener.renderSuccess();
-                    viewabilityTracker.start();
                 }
 
                 @Override
                 public void failedToLoad(AdException error) {
                     if (!destroyed) {
-                        viewabilityTracker.stop();
                         listener.renderFailed(error);
                     }
+                }
+
+                @Override
+                public void adDisplayed() {
+                    notifyImpression();
                 }
 
                 @Override
@@ -140,7 +134,6 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
             return;
         }
         destroyed = true;
-        viewabilityTracker.stop();
         adViewManager.destroy();
         interstitialManager.destroy();
         container.removeAllViews();
@@ -153,67 +146,5 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
         }
         impressionSent = true;
         listener.impression();
-    }
-
-    private static final class BannerViewabilityTracker {
-        private final View view;
-        private final Runnable onImpression;
-        private final Handler handler = new Handler(Looper.getMainLooper());
-        private long visibleMs;
-        private boolean running;
-
-        private final Runnable checkRunnable = new Runnable() {
-            @Override
-            public void run() {
-                if (!running) {
-                    return;
-                }
-
-                if (isViewable(view)) {
-                    visibleMs += VISIBILITY_CHECK_INTERVAL_MS;
-                    if (visibleMs >= IMPRESSION_VISIBLE_PERIOD_MS) {
-                        running = false;
-                        onImpression.run();
-                        return;
-                    }
-                } else {
-                    visibleMs = 0L;
-                }
-
-                handler.postDelayed(this, VISIBILITY_CHECK_INTERVAL_MS);
-            }
-        };
-
-        BannerViewabilityTracker(@NonNull View view, @NonNull Runnable onImpression) {
-            this.view = view;
-            this.onImpression = onImpression;
-        }
-
-        void start() {
-            stop();
-            running = true;
-            handler.post(checkRunnable);
-        }
-
-        void stop() {
-            running = false;
-            visibleMs = 0L;
-            handler.removeCallbacks(checkRunnable);
-        }
-
-        private static boolean isViewable(View view) {
-            if (!view.isShown() || view.getWidth() <= 0 || view.getHeight() <= 0) {
-                return false;
-            }
-
-            Rect visibleRect = new Rect();
-            if (!view.getGlobalVisibleRect(visibleRect)) {
-                return false;
-            }
-
-            int visibleArea = visibleRect.width() * visibleRect.height();
-            int totalArea = view.getWidth() * view.getHeight();
-            return totalArea > 0 && visibleArea >= totalArea * IMPRESSION_VISIBLE_RATIO;
-        }
     }
 }

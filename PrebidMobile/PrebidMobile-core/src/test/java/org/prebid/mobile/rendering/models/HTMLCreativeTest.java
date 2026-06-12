@@ -53,6 +53,7 @@ import org.prebid.mobile.rendering.interstitial.rewarded.RewardManager;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardedClosingRules;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardedCompletionRules;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardedExt;
+import org.prebid.mobile.rendering.listeners.CreativeImpressionListener;
 import org.prebid.mobile.rendering.listeners.CreativeResolutionListener;
 import org.prebid.mobile.rendering.listeners.CreativeViewListener;
 import org.prebid.mobile.rendering.models.internal.InternalFriendlyObstruction;
@@ -284,16 +285,19 @@ public class HTMLCreativeTest {
     @Test
     public void viewabilityTrackListenerExecutionIsViewable_trackImpression() {
         ViewExposure viewExposure = new ViewExposure();
+        CreativeTrackingListener creativeTrackingListener = mock(CreativeTrackingListener.class);
 
         PrebidWebViewBase mockPrebidWebViewBase = mock(PrebidWebViewBase.class);
         when(mockPrebidWebViewBase.getWebView()).thenReturn(mock(WebViewBase.class));
         htmlCreative.setCreativeView(mockPrebidWebViewBase);
+        htmlCreative.setCreativeViewListener(creativeTrackingListener);
 
         VisibilityTrackerResult result = new VisibilityTrackerResult(NativeEventTracker.EventType.IMPRESSION,
                                                                      viewExposure, true, true);
         htmlCreative.onVisibilityEvent(result);
 
         verify(mockModel, times(1)).trackDisplayAdEvent(TrackingEvent.Events.IMPRESSION);
+        verify(creativeTrackingListener, times(1)).creativeDidTrackImpression(htmlCreative);
         verify(mockPrebidWebViewBase, times(1)).onWindowFocusChanged(true);
         verify(mockPrebidWebViewBase, times(1)).onViewExposureChange(viewExposure);
     }
@@ -474,6 +478,9 @@ public class HTMLCreativeTest {
         verify(mockWebView).setActionUrl(captor.capture());
 
         assertEquals("endCardEvent", captor.getValue().url);
+    }
+
+    private interface CreativeTrackingListener extends CreativeViewListener, CreativeImpressionListener {
     }
 
 }

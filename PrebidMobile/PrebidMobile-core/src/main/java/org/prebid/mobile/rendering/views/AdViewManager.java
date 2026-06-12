@@ -28,6 +28,7 @@ import org.prebid.mobile.api.rendering.InterstitialView;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
 import org.prebid.mobile.core.R;
 import org.prebid.mobile.rendering.bidding.data.bid.BidResponse;
+import org.prebid.mobile.rendering.listeners.CreativeImpressionListener;
 import org.prebid.mobile.rendering.listeners.CreativeViewListener;
 import org.prebid.mobile.rendering.loading.CreativeFactory;
 import org.prebid.mobile.rendering.loading.Transaction;
@@ -48,7 +49,7 @@ import org.prebid.mobile.rendering.views.interstitial.InterstitialManager;
 import java.lang.ref.WeakReference;
 import java.util.List;
 
-public class AdViewManager implements CreativeViewListener, TransactionManagerListener {
+public class AdViewManager implements CreativeViewListener, CreativeImpressionListener, TransactionManagerListener {
 
     private static final String TAG = AdViewManager.class.getSimpleName();
 
@@ -427,6 +428,13 @@ public class AdViewManager implements CreativeViewListener, TransactionManagerLi
             return;
         }
         displayCreative(creativeView);
+    }
+
+    @Override
+    public void creativeDidTrackImpression(AbstractCreative creative) {
+        if (creative.equals(currentCreative)) {
+            adViewListener.adDisplayed();
+        }
     }
 
     private void displayCreative(View creativeView) {

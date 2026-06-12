@@ -28,6 +28,7 @@ import org.prebid.mobile.api.exceptions.AdException;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
 import org.prebid.mobile.rendering.interstitial.InterstitialManagerDisplayDelegate;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardedExt;
+import org.prebid.mobile.rendering.listeners.CreativeImpressionListener;
 import org.prebid.mobile.rendering.listeners.CreativeViewListener;
 import org.prebid.mobile.rendering.listeners.WebViewDelegate;
 import org.prebid.mobile.rendering.models.internal.MraidEvent;
@@ -281,6 +282,9 @@ public class HTMLCreative extends AbstractCreative implements WebViewDelegate, I
         if (shouldFireImpression && isViewable) {
             LogUtil.debug(TAG, "Impression fired");
             getCreativeModel().trackDisplayAdEvent(TrackingEvent.Events.IMPRESSION);
+            if (getCreativeViewListener() instanceof CreativeImpressionListener) {
+                ((CreativeImpressionListener) getCreativeViewListener()).creativeDidTrackImpression(this);
+            }
         }
         getCreativeView().onWindowFocusChanged(isViewable);
         getCreativeView().onViewExposureChange(viewExposure);

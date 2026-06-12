@@ -46,6 +46,11 @@ public abstract class AdViewManagerListener {
     public void adCompleted() { }
 
     /**
+     * When a display creative's Prebid impression path has fired.
+     */
+    public void adDisplayed() { }
+
+    /**
      * Handle click of a creative
      */
     public void creativeClicked(String url) { }
