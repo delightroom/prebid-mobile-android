@@ -534,6 +534,18 @@ public class PrebidNativeAd {
         visibilityDetector.addVisibilityListener(daroViewabilityListener);
     }
 
+    public void daroUnregisterViewFromTracking() {
+        if (visibilityDetector != null) {
+            visibilityDetector.destroy();
+            visibilityDetector = null;
+        }
+        stopNativeOmidSession();
+        daroViewabilityListener = null;
+        registeredView = null;
+        impressionTrackers = null;
+        listener = null;
+    }
+
     private void createImpressionTrackers(View view) {
         ArrayList<String> combinedImpTrackers = new ArrayList<>();
         if (imp_trackers != null) {
@@ -682,16 +694,8 @@ public class PrebidNativeAd {
     }
 
     public void destroy() {
-        if (visibilityDetector != null) {
-            visibilityDetector.destroy();
-            visibilityDetector = null;
-        }
-        stopNativeOmidSession();
-        daroViewabilityListener = null;
-        registeredView = null;
-        impressionTrackers = null;
+        daroUnregisterViewFromTracking();
         clickTrackers = null;
-        listener = null;
     }
 
     public String getWinEvent() {
