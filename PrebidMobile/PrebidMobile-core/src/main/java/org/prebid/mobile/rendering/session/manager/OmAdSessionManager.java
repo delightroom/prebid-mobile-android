@@ -73,6 +73,7 @@ public class OmAdSessionManager {
 
     private Partner partner;
     private AdSession adSession;
+    private boolean omidSessionSkipped;
 
     public static final class NativeDisplayVerificationResource {
         private final String omidJsUrl;
@@ -124,6 +125,7 @@ public class OmAdSessionManager {
     }
 
     public void initWebAdSessionManager(WebView adView, String contentUrl) {
+        omidSessionSkipped = false;
         AdSessionConfiguration adSessionConfiguration = createAdSessionConfiguration(CreativeType.HTML_DISPLAY,
                                                                                      ImpressionType.ONE_PIXEL,
                                                                                      Owner.NATIVE,
@@ -139,12 +141,25 @@ public class OmAdSessionManager {
      * @param adVerifications VAST AdVerification node
      */
     public void initVideoAdSession(AdVerifications adVerifications, String contentUrl) {
+        omidSessionSkipped = false;
+        if (adVerifications == null ||
+            adVerifications.getVerifications() == null ||
+            adVerifications.getVerifications().isEmpty()) {
+            omidSessionSkipped = true;
+            LogUtil.debug(TAG, "Skipping video OMID session. AdVerification is unavailable.");
+            return;
+        }
+
         Owner owner = Owner.NATIVE;
         AdSessionConfiguration adSessionConfiguration = createAdSessionConfiguration(CreativeType.VIDEO,
                                                                                      ImpressionType.ONE_PIXEL,
                                                                                      owner,
                                                                                      owner);
         AdSessionContext adSessionContext = createAdSessionContext(adVerifications, contentUrl);
+        if (adSessionContext == null) {
+            omidSessionSkipped = true;
+            return;
+        }
         initAdSession(adSessionConfiguration, adSessionContext);
         initAdEvents();
         initMediaAdEvents();
@@ -155,6 +170,7 @@ public class OmAdSessionManager {
             List<NativeDisplayVerificationResource> verifications,
             @Nullable String contentUrl
     ) {
+        omidSessionSkipped = false;
         Owner owner = Owner.NATIVE;
         AdSessionConfiguration adSessionConfiguration = createAdSessionConfiguration(CreativeType.NATIVE_DISPLAY,
                                                                                      ImpressionType.ONE_PIXEL,
@@ -181,6 +197,9 @@ public class OmAdSessionManager {
      */
     public void displayAdLoaded() {
         if (adEvents == null) {
+            if (omidSessionSkipped) {
+                return;
+            }
             LogUtil.error(TAG, "Failed to register displayAdLoaded. AdEvent is null");
             return;
         }
@@ -194,6 +213,9 @@ public class OmAdSessionManager {
      */
     public void nonSkippableStandaloneVideoAdLoaded(final boolean isAutoPlay) {
         if (adEvents == null) {
+            if (omidSessionSkipped) {
+                return;
+            }
             LogUtil.error(TAG, "Failed to register videoAdLoaded. adEvent is null");
             return;
         }
@@ -215,6 +237,9 @@ public class OmAdSessionManager {
      */
     public void videoAdStarted(final float duration, final float videoPlayerVolume) {
         if (mediaEvents == null) {
+            if (omidSessionSkipped) {
+                return;
+            }
             LogUtil.error(TAG, "Failed to register videoAdStarted. videoAdEvent is null");
             return;
         }
@@ -226,6 +251,9 @@ public class OmAdSessionManager {
      */
     public void registerImpression() {
         if (adEvents == null) {
+            if (omidSessionSkipped) {
+                return;
+            }
             LogUtil.error(TAG, "Failed to registerImpression: AdEvent is null");
             return;
         }
@@ -244,6 +272,9 @@ public class OmAdSessionManager {
      */
     public void trackVolumeChange(float volume) {
         if (mediaEvents == null) {
+            if (omidSessionSkipped) {
+                return;
+            }
             LogUtil.error(TAG, "Failed to trackVolumeChange. videoAdEvent is null");
             return;
         }
@@ -275,6 +306,9 @@ public class OmAdSessionManager {
      */
     public void trackAdVideoEvent(VideoAdEvent.Event adEvent) {
         if (mediaEvents == null) {
+            if (omidSessionSkipped) {
+                return;
+            }
             LogUtil.error(TAG, "Failed to trackAdVideoEvent. videoAdEvent is null");
             return;
         }
@@ -343,6 +377,9 @@ public class OmAdSessionManager {
      */
     public void trackPlayerStateChangeEvent(InternalPlayerState playerState) {
         if (mediaEvents == null) {
+            if (omidSessionSkipped) {
+                return;
+            }
             LogUtil.error(TAG, "Failed to track PlayerStateChangeEvent. videoAdEvent is null");
             return;
         }
@@ -354,6 +391,9 @@ public class OmAdSessionManager {
      */
     public void startAdSession() {
         if (adSession == null) {
+            if (omidSessionSkipped) {
+                return;
+            }
             LogUtil.error(TAG, "Failed to startAdSession. adSession is null");
             return;
         }
@@ -365,12 +405,17 @@ public class OmAdSessionManager {
      */
     public void stopAdSession() {
         if (adSession == null) {
+            if (omidSessionSkipped) {
+                omidSessionSkipped = false;
+                return;
+            }
             LogUtil.error(TAG, "Failed to stopAdSession. adSession is null");
             return;
         }
         adSession.finish();
         adSession = null;
         mediaEvents = null;
+        omidSessionSkipped = false;
     }
 
     /**
@@ -380,6 +425,9 @@ public class OmAdSessionManager {
      */
     public void registerAdView(View adView) {
         if (adSession == null) {
+            if (omidSessionSkipped) {
+                return;
+            }
             LogUtil.error(TAG, "Failed to registerAdView. adSession is null");
             return;
         }
@@ -397,6 +445,9 @@ public class OmAdSessionManager {
      */
     public void addObstruction(InternalFriendlyObstruction friendlyObstruction) {
         if (adSession == null) {
+            if (omidSessionSkipped) {
+                return;
+            }
             LogUtil.error(TAG, "Failed to addObstruction: adSession is null");
             return;
         }
@@ -418,6 +469,9 @@ public class OmAdSessionManager {
 
     private void trackAdUserInteractionEvent(InteractionType type) {
         if (mediaEvents == null) {
+            if (omidSessionSkipped) {
+                return;
+            }
             LogUtil.error(TAG, "Failed to register adUserInteractionEvent with type: " + type);
             return;
         }
