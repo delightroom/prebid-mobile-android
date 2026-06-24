@@ -8,6 +8,10 @@ import org.prebid.mobile.api.exceptions.AdException;
 import org.prebid.mobile.api.rendering.InterstitialView;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
 import org.prebid.mobile.rendering.bidding.interfaces.InterstitialViewListener;
+import org.prebid.mobile.rendering.interstitial.rewarded.Reward;
+import org.prebid.mobile.rendering.interstitial.rewarded.RewardedClosingRules;
+import org.prebid.mobile.rendering.interstitial.rewarded.RewardedCompletionRules;
+import org.prebid.mobile.rendering.interstitial.rewarded.RewardedExt;
 import org.prebid.mobile.rendering.models.AdDetails;
 import org.prebid.mobile.rendering.models.AdPosition;
 import org.prebid.mobile.rendering.models.PlacementType;
@@ -19,6 +23,9 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
     private final DaroPrebidRenderListener listener;
     private boolean destroyed;
     private boolean loaded;
+    private boolean showing;
+    private boolean startedSent;
+    private boolean closedSent;
     private boolean impressionSent;
 
     public DaroPrebidFullscreenRenderer(
@@ -43,11 +50,13 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
                     return;
                 }
                 loaded = false;
+                showing = false;
                 DaroPrebidFullscreenRenderer.this.listener.renderFailed(error);
             }
 
             @Override
             public void onAdDisplayed(InterstitialView interstitialView) {
+                notifyStarted();
                 notifyImpression();
             }
 
@@ -71,9 +80,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
 
             @Override
             public void onAdClosed(InterstitialView interstitialView) {
-                if (!destroyed) {
-                    DaroPrebidFullscreenRenderer.this.listener.closed();
-                }
+                notifyClosed();
             }
         });
         this.interstitialView.setPubBackGroundOpacity(1.0f);
@@ -84,6 +91,9 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
             return;
         }
         loaded = false;
+        showing = false;
+        startedSent = false;
+        closedSent = false;
         impressionSent = false;
 
         AdUnitConfiguration adConfiguration = new AdUnitConfiguration();
@@ -95,22 +105,49 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         adConfiguration.addSize(new AdSize(width, height));
         adConfiguration.setInterstitialSize(width, height);
         adConfiguration.setAutoRefreshDelay(0);
+        adConfiguration.getRewardManager().clear();
+        if (rewarded) {
+            adConfiguration.getRewardManager().setRewardedExt(defaultRewardedExt());
+            adConfiguration.getRewardManager().setRewardListener(() -> {
+                Reward reward = adConfiguration.getRewardManager().getRewardedExt().getReward();
+                String type = reward != null ? reward.getType() : "reward";
+                int amount = reward != null ? reward.getCount() : 1;
+                listener.rewardEarned(type, amount);
+            });
+        }
 
         interstitialView.loadVastAd(adConfiguration, vastXml);
+    }
+
+    @NonNull
+    private RewardedExt defaultRewardedExt() {
+        return new RewardedExt(
+            new Reward("reward", 1, null),
+            new RewardedCompletionRules(
+                null,
+                null,
+                null,
+                null,
+                RewardedCompletionRules.PlaybackEvent.COMPLETE,
+                null
+            ),
+            new RewardedClosingRules()
+        );
     }
 
     public void show() {
         if (destroyed) {
             return;
         }
-        listener.renderStarted();
-        if (!loaded) {
+        if (!loaded || showing) {
             listener.renderFailed(new AdException(
                 AdException.INTERNAL_ERROR,
                 "Fullscreen ad is not loaded"
             ));
             return;
         }
+        showing = true;
+        loaded = false;
         interstitialView.showVideoAsInterstitial();
     }
 
@@ -130,5 +167,22 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         }
         impressionSent = true;
         listener.impression();
+    }
+
+    private void notifyStarted() {
+        if (destroyed || startedSent) {
+            return;
+        }
+        startedSent = true;
+        listener.renderStarted();
+    }
+
+    private void notifyClosed() {
+        if (destroyed || closedSent) {
+            return;
+        }
+        closedSent = true;
+        showing = false;
+        listener.closed();
     }
 }

@@ -16,6 +16,8 @@ public interface DaroPrebidRenderListener {
 
     default void videoCompleted() {}
 
+    default void rewardEarned(@NonNull String type, int amount) {}
+
     default void expired() {}
 
     default void closed() {}
