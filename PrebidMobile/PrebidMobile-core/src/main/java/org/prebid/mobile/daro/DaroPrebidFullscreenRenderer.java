@@ -49,6 +49,9 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
                 if (destroyed) {
                     return;
                 }
+                if (startedSent) {
+                    return;
+                }
                 loaded = false;
                 showing = false;
                 DaroPrebidFullscreenRenderer.this.listener.renderFailed(error);
@@ -139,7 +142,10 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         if (destroyed) {
             return;
         }
-        if (!loaded || showing) {
+        if (showing) {
+            return;
+        }
+        if (!loaded) {
             listener.renderFailed(new AdException(
                 AdException.INTERNAL_ERROR,
                 "Fullscreen ad is not loaded"
