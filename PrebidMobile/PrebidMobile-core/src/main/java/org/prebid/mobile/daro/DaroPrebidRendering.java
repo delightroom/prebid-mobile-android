@@ -47,6 +47,28 @@ public final class DaroPrebidRendering {
     }
 
     @NonNull
+    public static DaroPrebidFullscreenRenderer createFullscreenRenderer(
+        @NonNull Context context,
+        @NonNull DaroPrebidRenderListener listener
+    ) throws AdException {
+        return new DaroPrebidFullscreenRenderer(context, listener);
+    }
+
+    @NonNull
+    public static DaroPrebidRenderHandle renderFullscreenVast(
+        @NonNull Context context,
+        @NonNull String vastXml,
+        int width,
+        int height,
+        boolean rewarded,
+        @NonNull DaroPrebidRenderListener listener
+    ) throws AdException {
+        DaroPrebidFullscreenRenderer renderer = createFullscreenRenderer(context, listener);
+        renderer.renderVast(vastXml, width, height, rewarded);
+        return renderer;
+    }
+
+    @NonNull
     public static DaroPrebidNativeRenderer createNativeRenderer() {
         return new DaroPrebidNativeRenderer();
     }

@@ -127,6 +127,13 @@ public class InterstitialView extends BaseAdView {
         adViewManager.loadBidTransaction(adUnitConfiguration, bidResponse);
     }
 
+    public void loadVastAd(
+        AdUnitConfiguration adUnitConfiguration,
+        String vastXml
+    ) {
+        adViewManager.loadVideoTransaction(adUnitConfiguration, vastXml);
+    }
+
     public void setInterstitialViewListener(InterstitialViewListener listener) {
         this.listener = listener;
     }

@@ -14,6 +14,8 @@ public interface DaroPrebidRenderListener {
 
     default void click() {}
 
+    default void videoCompleted() {}
+
     default void expired() {}
 
     default void closed() {}
