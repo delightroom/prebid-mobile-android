@@ -19,6 +19,8 @@ import org.prebid.mobile.rendering.models.PlacementType;
 import java.util.EnumSet;
 
 public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandle {
+    private static final int DEFAULT_HTML_REWARD_SECONDS = 5;
+
     private final InterstitialView interstitialView;
     private final DaroPrebidRenderListener listener;
     private boolean destroyed;
@@ -27,6 +29,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
     private boolean startedSent;
     private boolean closedSent;
     private boolean impressionSent;
+    private RenderMode renderMode = RenderMode.VIDEO;
 
     public DaroPrebidFullscreenRenderer(
         @NonNull Context context,
@@ -93,11 +96,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         if (destroyed) {
             return;
         }
-        loaded = false;
-        showing = false;
-        startedSent = false;
-        closedSent = false;
-        impressionSent = false;
+        resetRenderState(RenderMode.VIDEO);
 
         AdUnitConfiguration adConfiguration = new AdUnitConfiguration();
         adConfiguration.setAdFormats(EnumSet.of(AdFormat.INTERSTITIAL, AdFormat.VAST));
@@ -110,7 +109,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         adConfiguration.setAutoRefreshDelay(0);
         adConfiguration.getRewardManager().clear();
         if (rewarded) {
-            adConfiguration.getRewardManager().setRewardedExt(defaultRewardedExt());
+            adConfiguration.getRewardManager().setRewardedExt(defaultVideoRewardedExt());
             adConfiguration.getRewardManager().setRewardListener(() -> {
                 Reward reward = adConfiguration.getRewardManager().getRewardedExt().getReward();
                 String type = reward != null ? reward.getType() : "reward";
@@ -122,8 +121,37 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         interstitialView.loadVastAd(adConfiguration, vastXml);
     }
 
+    public void renderHtml(@NonNull String html, int width, int height, boolean rewarded) {
+        if (destroyed) {
+            return;
+        }
+        resetRenderState(RenderMode.HTML);
+
+        AdUnitConfiguration adConfiguration = new AdUnitConfiguration();
+        adConfiguration.setAdFormats(EnumSet.of(AdFormat.INTERSTITIAL));
+        adConfiguration.setAdFormat(AdFormat.INTERSTITIAL);
+        adConfiguration.setRewarded(rewarded);
+        adConfiguration.setAdPosition(AdPosition.FULLSCREEN);
+        adConfiguration.setPlacementType(PlacementType.INTERSTITIAL);
+        adConfiguration.addSize(new AdSize(width, height));
+        adConfiguration.setInterstitialSize(width, height);
+        adConfiguration.setAutoRefreshDelay(0);
+        adConfiguration.getRewardManager().clear();
+        if (rewarded) {
+            adConfiguration.getRewardManager().setRewardedExt(defaultHtmlRewardedExt());
+            adConfiguration.getRewardManager().setRewardListener(() -> {
+                Reward reward = adConfiguration.getRewardManager().getRewardedExt().getReward();
+                String type = reward != null ? reward.getType() : "reward";
+                int amount = reward != null ? reward.getCount() : 1;
+                listener.rewardEarned(type, amount);
+            });
+        }
+
+        interstitialView.loadHtmlAd(adConfiguration, html, width, height);
+    }
+
     @NonNull
-    private RewardedExt defaultRewardedExt() {
+    private RewardedExt defaultVideoRewardedExt() {
         return new RewardedExt(
             new Reward("reward", 1, null),
             new RewardedCompletionRules(
@@ -135,6 +163,22 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
                 null
             ),
             new RewardedClosingRules()
+        );
+    }
+
+    @NonNull
+    private RewardedExt defaultHtmlRewardedExt() {
+        return new RewardedExt(
+            new Reward("reward", 1, null),
+            new RewardedCompletionRules(
+                DEFAULT_HTML_REWARD_SECONDS,
+                null,
+                DEFAULT_HTML_REWARD_SECONDS,
+                null,
+                null,
+                null
+            ),
+            new RewardedClosingRules(0, RewardedClosingRules.Action.CLOSE_BUTTON)
         );
     }
 
@@ -154,7 +198,11 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         }
         showing = true;
         loaded = false;
-        interstitialView.showVideoAsInterstitial();
+        if (renderMode == RenderMode.HTML) {
+            interstitialView.showHtmlAsInterstitial();
+        } else {
+            interstitialView.showVideoAsInterstitial();
+        }
     }
 
     @Override
@@ -190,5 +238,19 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         closedSent = true;
         showing = false;
         listener.closed();
+    }
+
+    private void resetRenderState(RenderMode renderMode) {
+        this.renderMode = renderMode;
+        loaded = false;
+        showing = false;
+        startedSent = false;
+        closedSent = false;
+        impressionSent = false;
+    }
+
+    private enum RenderMode {
+        VIDEO,
+        HTML
     }
 }

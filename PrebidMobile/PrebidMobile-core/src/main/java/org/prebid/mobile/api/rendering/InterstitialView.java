@@ -16,11 +16,14 @@
 
 package org.prebid.mobile.api.rendering;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.util.Log;
 import android.view.View;
+import org.prebid.mobile.AdSize;
 import org.prebid.mobile.LogUtil;
+import org.prebid.mobile.api.data.AdFormat;
 import org.prebid.mobile.api.exceptions.AdException;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
 import org.prebid.mobile.core.R;
@@ -28,15 +31,20 @@ import org.prebid.mobile.rendering.bidding.data.bid.BidResponse;
 import org.prebid.mobile.rendering.bidding.interfaces.InterstitialViewListener;
 import org.prebid.mobile.rendering.interstitial.DialogEventListener;
 import org.prebid.mobile.rendering.models.AdDetails;
+import org.prebid.mobile.rendering.models.CreativeModel;
+import org.prebid.mobile.rendering.models.CreativeModelsMaker;
 import org.prebid.mobile.rendering.models.internal.InternalFriendlyObstruction;
+import org.prebid.mobile.rendering.networking.tracking.TrackingManager;
 import org.prebid.mobile.rendering.utils.constants.IntentActions;
 import org.prebid.mobile.rendering.utils.helpers.InsetsUtils;
+import org.prebid.mobile.rendering.video.OmEventTracker;
 import org.prebid.mobile.rendering.views.AdViewManager;
 import org.prebid.mobile.rendering.views.AdViewManagerListener;
 import org.prebid.mobile.rendering.views.base.BaseAdView;
 import org.prebid.mobile.rendering.views.interstitial.InterstitialVideo;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -48,6 +56,7 @@ public class InterstitialView extends BaseAdView {
 
     private InterstitialViewListener listener;
     protected InterstitialVideo interstitialVideo;
+    private boolean displayNotificationDeferred;
 
     @Override
     protected void onConfigurationChanged(Configuration newConfig) {
@@ -75,8 +84,7 @@ public class InterstitialView extends BaseAdView {
 
         @Override
         public void viewReadyForImmediateDisplay(View view) {
-            if (adViewManager.isNotShowingEndCard()) {
-
+            if (adViewManager.isNotShowingEndCard() && !displayNotificationDeferred) {
                 listener.onAdDisplayed(InterstitialView.this);
             }
 
@@ -132,6 +140,57 @@ public class InterstitialView extends BaseAdView {
         String vastXml
     ) {
         adViewManager.loadVideoTransaction(adUnitConfiguration, vastXml);
+    }
+
+    public void loadHtmlAd(
+        AdUnitConfiguration adUnitConfiguration,
+        String html,
+        int width,
+        int height
+    ) {
+        adUnitConfiguration.setAdFormat(AdFormat.INTERSTITIAL);
+        adUnitConfiguration.addSize(new AdSize(width, height));
+        adUnitConfiguration.setInterstitialSize(width, height);
+
+        CreativeModel model = new CreativeModel(
+            TrackingManager.getInstance(),
+            new OmEventTracker(),
+            adUnitConfiguration
+        );
+        model.setName("HTML");
+        model.setHtml(html);
+        model.setWidth(width);
+        model.setHeight(height);
+        model.setRequireImpressionUrl(false);
+
+        CreativeModelsMaker.Result result = new CreativeModelsMaker.Result();
+        result.transactionState = "daro-fullscreen-display";
+        result.loaderIdentifier = "daro-fullscreen-display";
+        result.creativeModels = Collections.singletonList(model);
+
+        adViewManager.loadCreativeModels(adUnitConfiguration, result);
+    }
+
+    public void showHtmlAsInterstitial() {
+        try {
+            if (!(getContext() instanceof Activity)) {
+                notifyErrorListeners(new AdException(
+                    AdException.INTERNAL_ERROR,
+                    "Interstitial failed to show: context is not an Activity"
+                ));
+                return;
+            }
+
+            displayNotificationDeferred = true;
+            interstitialManager.configureInterstitialProperties(adViewManager.getAdConfiguration());
+            interstitialManager.displayAdViewInInterstitial(getContext(), InterstitialView.this);
+            listener.onAdDisplayed(InterstitialView.this);
+        } catch (final Exception e) {
+            LogUtil.error(TAG, "HTML interstitial failed to show:" + Log.getStackTraceString(e));
+            notifyErrorListeners(new AdException(AdException.INTERNAL_ERROR, e.getMessage()));
+        } finally {
+            displayNotificationDeferred = false;
+        }
     }
 
     public void setInterstitialViewListener(InterstitialViewListener listener) {
