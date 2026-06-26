@@ -42,6 +42,7 @@ import org.prebid.mobile.rendering.views.interstitial.InterstitialManager;
 import org.prebid.mobile.rendering.views.webview.*;
 
 import java.util.EnumSet;
+import java.util.List;
 
 public class HTMLCreative extends AbstractCreative implements WebViewDelegate, InterstitialManagerDisplayDelegate, Comparable {
 
@@ -164,6 +165,14 @@ public class HTMLCreative extends AbstractCreative implements WebViewDelegate, I
         }
 
         WebViewBase webView = getCreativeView().getWebView();
+        List<OmAdSessionManager.NativeDisplayVerificationResource> nativeDisplayResources =
+            getCreativeModel().getNativeDisplayVerificationResources();
+        if (nativeDisplayResources != null && !nativeDisplayResources.isEmpty()) {
+            if (omAdSessionManager.initNativeDisplayAdSession(getCreativeView(), nativeDisplayResources, null)) {
+                omAdSessionManager.startAdSession();
+                return;
+            }
+        }
 
         omAdSessionManager.initWebAdSessionManager(webView, null);
         startOmSession(omAdSessionManager, webView);

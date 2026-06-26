@@ -35,6 +35,7 @@ import org.prebid.mobile.rendering.models.CreativeModel;
 import org.prebid.mobile.rendering.models.CreativeModelsMaker;
 import org.prebid.mobile.rendering.models.internal.InternalFriendlyObstruction;
 import org.prebid.mobile.rendering.networking.tracking.TrackingManager;
+import org.prebid.mobile.rendering.session.manager.OmAdSessionManager;
 import org.prebid.mobile.rendering.utils.constants.IntentActions;
 import org.prebid.mobile.rendering.utils.helpers.InsetsUtils;
 import org.prebid.mobile.rendering.video.OmEventTracker;
@@ -148,6 +149,16 @@ public class InterstitialView extends BaseAdView {
         int width,
         int height
     ) {
+        loadHtmlAd(adUnitConfiguration, html, width, height, Collections.emptyList());
+    }
+
+    public void loadHtmlAd(
+        AdUnitConfiguration adUnitConfiguration,
+        String html,
+        int width,
+        int height,
+        List<OmAdSessionManager.NativeDisplayVerificationResource> omidVerificationResources
+    ) {
         adUnitConfiguration.setAdFormat(AdFormat.INTERSTITIAL);
         adUnitConfiguration.addSize(new AdSize(width, height));
         adUnitConfiguration.setInterstitialSize(width, height);
@@ -162,6 +173,7 @@ public class InterstitialView extends BaseAdView {
         model.setWidth(width);
         model.setHeight(height);
         model.setRequireImpressionUrl(false);
+        model.setNativeDisplayVerificationResources(omidVerificationResources);
 
         CreativeModelsMaker.Result result = new CreativeModelsMaker.Result();
         result.transactionState = "daro-fullscreen-display";

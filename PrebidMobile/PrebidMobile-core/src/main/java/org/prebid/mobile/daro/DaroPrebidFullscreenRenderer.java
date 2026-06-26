@@ -15,8 +15,12 @@ import org.prebid.mobile.rendering.interstitial.rewarded.RewardedExt;
 import org.prebid.mobile.rendering.models.AdDetails;
 import org.prebid.mobile.rendering.models.AdPosition;
 import org.prebid.mobile.rendering.models.PlacementType;
+import org.prebid.mobile.rendering.session.manager.OmAdSessionManager;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
 
 public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandle {
     private static final int DEFAULT_HTML_REWARD_SECONDS = 5;
@@ -122,6 +126,16 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
     }
 
     public void renderHtml(@NonNull String html, int width, int height, boolean rewarded) {
+        renderHtml(html, width, height, rewarded, Collections.emptyList());
+    }
+
+    public void renderHtml(
+        @NonNull String html,
+        int width,
+        int height,
+        boolean rewarded,
+        @NonNull List<DaroPrebidOmidVerificationResource> omidVerificationResources
+    ) {
         if (destroyed) {
             return;
         }
@@ -147,7 +161,28 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
             });
         }
 
-        interstitialView.loadHtmlAd(adConfiguration, html, width, height);
+        interstitialView.loadHtmlAd(
+            adConfiguration,
+            html,
+            width,
+            height,
+            nativeDisplayVerificationResources(omidVerificationResources)
+        );
+    }
+
+    @NonNull
+    private List<OmAdSessionManager.NativeDisplayVerificationResource> nativeDisplayVerificationResources(
+        @NonNull List<DaroPrebidOmidVerificationResource> resources
+    ) {
+        List<OmAdSessionManager.NativeDisplayVerificationResource> mapped = new ArrayList<>();
+        for (DaroPrebidOmidVerificationResource resource : resources) {
+            mapped.add(new OmAdSessionManager.NativeDisplayVerificationResource(
+                resource.getUrl(),
+                resource.getVendorKey(),
+                resource.getVerificationParameters()
+            ));
+        }
+        return mapped;
     }
 
     @NonNull

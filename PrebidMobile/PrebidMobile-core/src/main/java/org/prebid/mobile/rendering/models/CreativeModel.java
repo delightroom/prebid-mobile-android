@@ -26,6 +26,7 @@ import org.prebid.mobile.rendering.video.VideoAdEvent;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 // CreativeModel is visible to the publisher, and defines:
 // --- displayDurationInSeconds indicates the time the creative will display for
@@ -68,6 +69,8 @@ public class CreativeModel {
     //all - resolved ri url of an ad
     private String impressionUrl;
     private String viewableUrl;
+
+    private List<OmAdSessionManager.NativeDisplayVerificationResource> nativeDisplayVerificationResources;
 
     // Determines whether an impression is needed
     // For end cards, an impression is not necessary
@@ -190,6 +193,16 @@ public class CreativeModel {
 
     public void setHtml(String html) {
         this.html = html;
+    }
+
+    public List<OmAdSessionManager.NativeDisplayVerificationResource> getNativeDisplayVerificationResources() {
+        return nativeDisplayVerificationResources;
+    }
+
+    public void setNativeDisplayVerificationResources(
+        List<OmAdSessionManager.NativeDisplayVerificationResource> nativeDisplayVerificationResources
+    ) {
+        this.nativeDisplayVerificationResources = nativeDisplayVerificationResources;
     }
 
     @Nullable

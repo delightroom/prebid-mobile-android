@@ -604,16 +604,26 @@ public class OmAdSessionManager {
         List<VerificationScriptResource> verificationScriptResources = new ArrayList<>();
         for (NativeDisplayVerificationResource verification : verifications) {
             final URL url = new URL(verification.omidJsUrl);
-            VerificationScriptResource verificationScriptResource =
-                    VerificationScriptResource.createVerificationScriptResourceWithParameters(
-                            verification.vendorKey,
-                            url,
-                            verification.verificationParameters
-                    );
+            VerificationScriptResource verificationScriptResource;
+            if (hasText(verification.vendorKey) && hasText(verification.verificationParameters)) {
+                verificationScriptResource =
+                        VerificationScriptResource.createVerificationScriptResourceWithParameters(
+                                verification.vendorKey,
+                                url,
+                                verification.verificationParameters
+                        );
+            } else {
+                verificationScriptResource =
+                        VerificationScriptResource.createVerificationScriptResourceWithoutParameters(url);
+            }
             verificationScriptResources.add(verificationScriptResource);
         }
 
         return verificationScriptResources;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 
 }
