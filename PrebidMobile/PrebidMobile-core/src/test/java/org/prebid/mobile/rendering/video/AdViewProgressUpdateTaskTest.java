@@ -191,6 +191,28 @@ public class AdViewProgressUpdateTaskTest {
     }
 
     @Test
+    public void getVideoLengthPercentageForReward_daroRewardedWithEndCard_UsesVideoCompletionRule() {
+        int videoDuration = 10_000;
+        AdUnitConfiguration config = new AdUnitConfiguration();
+        config.setRewarded(true);
+        config.setHasEndCard(true);
+        config.setDaroFullscreenRenderer(true);
+
+        RewardedExt rewardedExt = new RewardedExt(
+                null,
+                new RewardedCompletionRules(null, null, null, null, RewardedCompletionRules.PlaybackEvent.COMPLETE, null),
+                new RewardedClosingRules()
+        );
+        RewardManager rewardManager = new RewardManager();
+        rewardManager.setRewardedExt(rewardedExt);
+        config.setRewardManager(rewardManager);
+
+        Integer result = AdViewProgressUpdateTask.getVideoLengthPercentageForReward(videoDuration, config);
+
+        assertEquals(Integer.valueOf(100), result);
+    }
+
+    @Test
     public void getVideoLengthPercentageForReward_1() {
         testReward(10_000, null, RewardedCompletionRules.PlaybackEvent.START, 1);
     }

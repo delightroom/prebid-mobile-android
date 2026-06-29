@@ -50,6 +50,7 @@ public class DaroFullscreenChromeViewTest {
         assertEquals(View.GONE, chromeView.findViewById(R.id.iv_close_interstitial).getVisibility());
         assertEquals(View.GONE, chromeView.findViewById(R.id.iv_skip).getVisibility());
         assertEquals(View.GONE, chromeView.findViewById(R.id.tv_learn_more).getVisibility());
+        assertEquals(View.GONE, chromeView.findViewById(R.id.daro_reward_toast).getVisibility());
     }
 
     @Test
@@ -193,6 +194,20 @@ public class DaroFullscreenChromeViewTest {
         assertEquals(dp(166), toastParams.width);
         assertEquals(dp(36), toastParams.height);
         assertEquals(dp(142), toastParams.topMargin);
+    }
+
+    @Test
+    public void showRewardUnlocked_HideResetsEnterAnimationState() {
+        chromeView.showRewardUnlocked(true);
+
+        chromeView.showRewardUnlocked(false);
+
+        View toast = chromeView.findViewById(R.id.daro_reward_toast);
+        assertEquals(View.GONE, toast.getVisibility());
+        assertEquals(0f, toast.getAlpha(), 0.001f);
+        assertEquals(dp(DaroFullscreenChromeView.REWARD_TOAST_INITIAL_TRANSLATION_DP), Math.round(toast.getTranslationY()));
+        assertEquals(DaroFullscreenChromeView.REWARD_TOAST_INITIAL_SCALE, toast.getScaleX(), 0.001f);
+        assertEquals(DaroFullscreenChromeView.REWARD_TOAST_INITIAL_SCALE, toast.getScaleY(), 0.001f);
     }
 
     @Test

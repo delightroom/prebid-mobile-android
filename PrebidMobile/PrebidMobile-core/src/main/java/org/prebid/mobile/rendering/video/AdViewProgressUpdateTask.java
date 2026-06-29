@@ -213,8 +213,11 @@ public class AdViewProgressUpdateTask extends AsyncTask<Void, Long, Void> {
      */
     @Nullable
     protected static Integer getVideoLengthPercentageForReward(int videoDuration, AdUnitConfiguration config) {
-        boolean hasEndCard = !config.isRewarded() || config.getHasEndCard();
-        if (hasEndCard) {
+        if (!config.isRewarded()) {
+            return null;
+        }
+
+        if (config.getHasEndCard() && !config.isDaroFullscreenRenderer()) {
             return null;
         }
 

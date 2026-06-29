@@ -38,6 +38,8 @@ import org.prebid.mobile.rendering.loading.TransactionManager;
 import org.prebid.mobile.rendering.models.AbstractCreative;
 import org.prebid.mobile.rendering.models.AdDetails;
 import org.prebid.mobile.rendering.models.CreativeModelsMaker;
+import org.prebid.mobile.rendering.models.HTMLCreative;
+import org.prebid.mobile.rendering.interstitial.rewarded.RewardManager;
 import org.prebid.mobile.rendering.models.internal.InternalPlayerState;
 import org.prebid.mobile.rendering.networking.tracking.TrackingManager;
 import org.prebid.mobile.rendering.video.*;
@@ -239,6 +241,110 @@ public class AdViewManagerTest {
 
         adViewManager.creativeDidComplete(mockVideoCreative);
         verify(mockAdViewListener, times(2)).adCompleted();
+    }
+
+    @Test
+    public void creativeDidComplete_DaroRewardedWithEndCard_DoesNotAutoAdvanceToEndCard() throws Exception {
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setDaroFullscreenRenderer(true);
+        configuration.setRewarded(true);
+        RewardManager rewardManager = new RewardManager();
+        Runnable rewardListener = mock(Runnable.class);
+        rewardManager.setRewardListener(rewardListener);
+        configuration.setRewardManager(rewardManager);
+        mockVideoCreativeWithConfiguration(configuration);
+
+        TransactionManager mockTransactionManager = mockTransactionWithEndCard();
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, mockTransactionManager);
+        WhiteBox.field(AdViewManager.class, "adConfiguration").set(adViewManager, configuration);
+        WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, mockAdView);
+
+        adViewManager.creativeDidComplete(mockVideoCreative);
+
+        verify(mockAdView, never()).closeInterstitialVideo();
+        verify(mockTransactionManager, never()).incrementCreativesCounter();
+        verify(mockInterstitialManager, never()).setInterstitialDisplayDelegate(any());
+        verify(mockInterstitialManager, never()).displayAdViewInInterstitial(any(), any());
+        verify(rewardListener).run();
+        assertTrue(rewardManager.getUserRewardedAlready());
+        verify(mockAdViewListener).videoCreativePlaybackFinished();
+    }
+
+    @Test
+    public void videoInterstitialClose_DaroRewardedAfterReward_AdvancesToEndCard() throws Exception {
+        AdViewManager.AdViewManagerInterstitialDelegate delegate = captureInterstitialDelegate();
+
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setDaroFullscreenRenderer(true);
+        configuration.setRewarded(true);
+        RewardManager rewardManager = new RewardManager();
+        rewardManager.setUserRewardedAlready(true);
+        configuration.setRewardManager(rewardManager);
+        mockVideoCreativeWithConfiguration(configuration);
+
+        TransactionManager mockTransactionManager = mockTransactionWithEndCard();
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, mockTransactionManager);
+        WhiteBox.field(AdViewManager.class, "adConfiguration").set(adViewManager, configuration);
+        WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, mockAdView);
+        clearInvocations(mockInterstitialManager);
+
+        boolean handled = delegate.handleVideoInterstitialClose();
+
+        assertTrue(handled);
+        verify(mockVideoCreative).destroy();
+        verify(mockTransactionManager).incrementCreativesCounter();
+        verify(mockInterstitialManager).setInterstitialDisplayDelegate(any());
+        verify(mockInterstitialManager).displayAdViewInInterstitial(any(), eq(mockAdView));
+    }
+
+    @Test
+    public void videoInterstitialClose_DaroRewardedBeforeReward_AdvancesToEndCardWithoutReward() throws Exception {
+        AdViewManager.AdViewManagerInterstitialDelegate delegate = captureInterstitialDelegate();
+
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setDaroFullscreenRenderer(true);
+        configuration.setRewarded(true);
+        RewardManager rewardManager = new RewardManager();
+        Runnable rewardListener = mock(Runnable.class);
+        rewardManager.setRewardListener(rewardListener);
+        configuration.setRewardManager(rewardManager);
+        mockVideoCreativeWithConfiguration(configuration);
+
+        TransactionManager mockTransactionManager = mockTransactionWithEndCard();
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, mockTransactionManager);
+        WhiteBox.field(AdViewManager.class, "adConfiguration").set(adViewManager, configuration);
+        WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, mockAdView);
+        clearInvocations(mockInterstitialManager);
+
+        boolean handled = delegate.handleVideoInterstitialClose();
+
+        assertTrue(handled);
+        verify(mockVideoCreative).destroy();
+        verify(mockTransactionManager).incrementCreativesCounter();
+        verify(mockInterstitialManager).setInterstitialDisplayDelegate(any());
+        verify(mockInterstitialManager).displayAdViewInInterstitial(any(), eq(mockAdView));
+        verify(rewardListener, never()).run();
+        assertFalse(rewardManager.getUserRewardedAlready());
+    }
+
+    @Test
+    public void creativeDidComplete_NonDaroRewardedWithEndCard_AutoAdvancesToEndCard() throws Exception {
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setRewarded(true);
+        mockVideoCreativeWithConfiguration(configuration);
+
+        TransactionManager mockTransactionManager = mockTransactionWithEndCard();
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, mockTransactionManager);
+        WhiteBox.field(AdViewManager.class, "adConfiguration").set(adViewManager, configuration);
+        WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, mockAdView);
+
+        adViewManager.creativeDidComplete(mockVideoCreative);
+
+        verify(mockAdView).closeInterstitialVideo();
+        verify(mockTransactionManager).incrementCreativesCounter();
+        verify(mockInterstitialManager).setInterstitialDisplayDelegate(any());
+        verify(mockInterstitialManager).displayAdViewInInterstitial(any(), eq(mockAdView));
+        verify(mockAdViewListener).videoCreativePlaybackFinished();
     }
 
     @Test
@@ -555,5 +661,44 @@ public class AdViewManagerTest {
         adViewManager.onFetchingCompleted(mockTransaction);
         verify(mockCreative).createOmAdSession();
         verify(mockAdViewListener).adLoaded(any(AdDetails.class));
+    }
+
+    private void mockVideoCreativeWithConfiguration(AdUnitConfiguration configuration) {
+        VideoCreativeModel videoModel = new VideoCreativeModel(
+                mock(TrackingManager.class),
+                mock(OmEventTracker.class),
+                configuration
+        );
+        when(mockVideoCreative.getCreativeModel()).thenReturn(videoModel);
+        when(mockVideoCreative.isVideo()).thenReturn(true);
+        when(mockVideoCreative.isBuiltInVideo()).thenReturn(false);
+    }
+
+    private AdViewManager.AdViewManagerInterstitialDelegate captureInterstitialDelegate() {
+        ArgumentCaptor<AdViewManager.AdViewManagerInterstitialDelegate> delegateCaptor =
+                ArgumentCaptor.forClass(AdViewManager.AdViewManagerInterstitialDelegate.class);
+        verify(mockInterstitialManager).setAdViewManagerInterstitialDelegate(delegateCaptor.capture());
+        return delegateCaptor.getValue();
+    }
+
+    private TransactionManager mockTransactionWithEndCard() {
+        Transaction mockTransaction = mock(Transaction.class);
+        CreativeFactory mockVideoFactory = mock(CreativeFactory.class);
+        CreativeFactory mockEndCardFactory = mock(CreativeFactory.class);
+        HTMLCreative mockEndCardCreative = mock(HTMLCreative.class);
+
+        when(mockVideoFactory.getCreative()).thenReturn(mockVideoCreative);
+        when(mockEndCardFactory.getCreative()).thenReturn(mockEndCardCreative);
+
+        List<CreativeFactory> creativeFactories = new ArrayList<>();
+        creativeFactories.add(mockVideoFactory);
+        creativeFactories.add(mockEndCardFactory);
+        when(mockTransaction.getCreativeFactories()).thenReturn(creativeFactories);
+
+        TransactionManager mockTransactionManager = mock(TransactionManager.class);
+        when(mockTransactionManager.getCurrentTransaction()).thenReturn(mockTransaction);
+        when(mockTransactionManager.getCurrentCreative()).thenReturn(mockVideoCreative);
+        when(mockTransactionManager.hasNextCreative()).thenReturn(true);
+        return mockTransactionManager;
     }
 }

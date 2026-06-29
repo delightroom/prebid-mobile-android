@@ -23,6 +23,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup.MarginLayoutParams;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -63,6 +64,9 @@ public class DaroFullscreenChromeView extends FrameLayout {
     @VisibleForTesting static final int FOOTER_HEIGHT_DP = 32;
     @VisibleForTesting static final int REWARD_TOAST_WIDTH_DP = 166;
     @VisibleForTesting static final int REWARD_TOAST_HEIGHT_DP = 36;
+    @VisibleForTesting static final int REWARD_TOAST_ENTER_DURATION_MS = 180;
+    @VisibleForTesting static final int REWARD_TOAST_INITIAL_TRANSLATION_DP = -8;
+    @VisibleForTesting static final float REWARD_TOAST_INITIAL_SCALE = 0.96f;
     @VisibleForTesting static final int AD_CHOICE_SIZE_DP = 20;
 
     private final ImageView closeButton;
@@ -191,7 +195,7 @@ public class DaroFullscreenChromeView extends FrameLayout {
         isEndCardLayout = true;
         closeButton.setVisibility(View.VISIBLE);
         soundButton.setVisibility(View.GONE);
-        rewardToast.setVisibility(View.GONE);
+        showRewardUnlocked(false);
         skipButton.setVisibility(View.GONE);
         progressTrack.setVisibility(View.GONE);
         setCallToActionVisible(false);
@@ -208,7 +212,29 @@ public class DaroFullscreenChromeView extends FrameLayout {
     }
 
     public void showRewardUnlocked(boolean visible) {
-        rewardToast.setVisibility(visible ? View.VISIBLE : View.GONE);
+        rewardToast.animate().cancel();
+        if (!visible) {
+            resetRewardToastHiddenState();
+            return;
+        }
+
+        if (rewardToast.getVisibility() == View.VISIBLE && rewardToast.getAlpha() == 1f) {
+            return;
+        }
+
+        rewardToast.setVisibility(View.VISIBLE);
+        rewardToast.setAlpha(0f);
+        rewardToast.setTranslationY(dp(REWARD_TOAST_INITIAL_TRANSLATION_DP));
+        rewardToast.setScaleX(REWARD_TOAST_INITIAL_SCALE);
+        rewardToast.setScaleY(REWARD_TOAST_INITIAL_SCALE);
+        rewardToast.animate()
+            .alpha(1f)
+            .translationY(0f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(REWARD_TOAST_ENTER_DURATION_MS)
+            .setInterpolator(new DecelerateInterpolator())
+            .start();
     }
 
     public void setSoundButtonVisible(boolean visible) {
@@ -553,6 +579,14 @@ public class DaroFullscreenChromeView extends FrameLayout {
         view.addView(label);
 
         return view;
+    }
+
+    private void resetRewardToastHiddenState() {
+        rewardToast.setVisibility(View.GONE);
+        rewardToast.setAlpha(0f);
+        rewardToast.setTranslationY(dp(REWARD_TOAST_INITIAL_TRANSLATION_DP));
+        rewardToast.setScaleX(REWARD_TOAST_INITIAL_SCALE);
+        rewardToast.setScaleY(REWARD_TOAST_INITIAL_SCALE);
     }
 
     private void updateProgressFill() {

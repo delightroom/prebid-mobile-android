@@ -93,6 +93,16 @@ public class InterstitialManagerTest {
     }
 
     @Test
+    public void handleVideoInterstitialClose_DelegatesToAdViewManager() {
+        when(mockAdViewDelegate.handleVideoInterstitialClose()).thenReturn(true);
+
+        boolean handled = spyInterstitialManager.handleVideoInterstitialClose();
+
+        assertEquals(true, handled);
+        verify(mockAdViewDelegate).handleVideoInterstitialClose();
+    }
+
+    @Test
     public void interstitialClosedAndMraidCollapsed_DoNotNotifyMraidDelegate()
     throws IllegalAccessException {
         HTMLCreative mockHtmlCreative = mock(HTMLCreative.class);

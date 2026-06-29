@@ -263,6 +263,34 @@ public class CreativeModelsMakerVastTest {
         );
     }
 
+    @Test
+    public void makeModels_DaroRewardedCompanionEndCard_DisablesEndCardRewardTimer() throws Exception {
+        String testFileName = "vast_inline_linear.xml";
+
+        BaseNetworkTask.GetUrlResult adResponse = new BaseNetworkTask.GetUrlResult();
+        adResponse.responseString = ResourceUtils.convertResourceToString(testFileName);
+
+        CreativeModelsMakerVast creativeModelsMakerVast = new CreativeModelsMakerVast(null, mockListener);
+
+        List<AdResponseParserBase> parsers = getVastParsers(adResponse);
+
+        AdResponseParserVast rootParser = (AdResponseParserVast) parsers.get(0);
+        AdResponseParserVast latestParser = (AdResponseParserVast) parsers.get(1);
+
+        adConfiguration.setRewarded(true);
+        adConfiguration.setDaroFullscreenRenderer(true);
+
+        creativeModelsMakerVast.makeModels(adConfiguration, rootParser, latestParser);
+
+        ArgumentCaptor<CreativeModelsMaker.Result> argumentCaptor = ArgumentCaptor.forClass(CreativeModelsMaker.Result.class);
+        verify(mockListener).onCreativeModelReady(argumentCaptor.capture());
+
+        CreativeModel endCardModel = argumentCaptor.getValue().creativeModels.get(1);
+
+        assertTrue(endCardModel.getAdConfiguration().getHasEndCard());
+        assertFalse(endCardModel.getAdConfiguration().isRewarded());
+    }
+
     private List<AdResponseParserBase> getVastParsers(BaseNetworkTask.GetUrlResult adResponse) throws NoSuchFieldException, IllegalAccessException {
 
         final VastParserExtractor.Listener mockListener = mock(VastParserExtractor.Listener.class);
@@ -346,6 +374,7 @@ public class CreativeModelsMakerVastTest {
         CreativeModel endCardModel = creativeModels.get(1);
 
         assertEquals("http://www.tremormedia.com", endCardModel.getClickUrl());
+        assertEquals(adConfiguration.isRewarded(), endCardModel.getAdConfiguration().isRewarded());
 
         HashMap<TrackingEvent.Events, ArrayList<String>> trackingURLs = endCardModel.trackingURLs;
         assertEquals("http://www.CompanionClickTracking.com",

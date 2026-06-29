@@ -221,7 +221,7 @@ public class CreativeModelsMakerVast extends CreativeModelsMaker {
                 AdUnitConfiguration endCardConfig = new AdUnitConfiguration();
                 endCardConfig.setRewardManager(adConfiguration.getRewardManager());
                 endCardConfig.setAdFormat(AdFormat.INTERSTITIAL);
-                endCardConfig.setRewarded(adConfiguration.isRewarded());
+                endCardConfig.setRewarded(shouldEndCardUseRewardedFlow(adConfiguration));
                 endCardConfig.getRewardManager().setRewardedExt(adConfiguration.getRewardManager().getRewardedExt());
                 endCardConfig.setHasEndCard(true);
                 endCardModel.setAdConfiguration(endCardConfig);
@@ -244,6 +244,10 @@ public class CreativeModelsMakerVast extends CreativeModelsMaker {
 
     private void notifyErrorListener(String msg) {
         listener.onFailedToLoadAd(new AdException(AdException.INTERNAL_ERROR, msg), adLoaderIdentifier);
+    }
+
+    private boolean shouldEndCardUseRewardedFlow(AdUnitConfiguration adConfiguration) {
+        return adConfiguration.isRewarded() && !adConfiguration.isDaroFullscreenRenderer();
     }
 
     private void checkVideoDuration(long currentDuration) throws VastParseError {

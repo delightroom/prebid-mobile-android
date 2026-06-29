@@ -65,7 +65,17 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
     private AbstractCreative currentCreative;
     private AbstractCreative lastCreativeShown;
 
-    private AdViewManagerInterstitialDelegate delegate = this::show;
+    private AdViewManagerInterstitialDelegate delegate = new AdViewManagerInterstitialDelegate() {
+        @Override
+        public void showInterstitial() {
+            show();
+        }
+
+        @Override
+        public boolean handleVideoInterstitialClose() {
+            return handleDaroRewardedVideoClose();
+        }
+    };
 
     public AdViewManager(
             Context context,
@@ -395,6 +405,12 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
     private void handleVideoCreativeComplete(AbstractCreative creative) {
         Transaction transaction = transactionManager.getCurrentTransaction();
         boolean isBuiltInVideo = creative.isBuiltInVideo();
+        if (shouldSuppressDaroRewardedAutoEndCard()) {
+            adConfiguration.getRewardManager().notifyRewardListener();
+            adViewListener.videoCreativePlaybackFinished();
+            return;
+        }
+
         closeInterstitial();
 
         if (transactionManager.hasNextCreative() && adView != null) {
@@ -411,6 +427,40 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
             }
         }
         adViewListener.videoCreativePlaybackFinished();
+    }
+
+    private boolean shouldSuppressDaroRewardedAutoEndCard() {
+        return adConfiguration != null
+                && adConfiguration.isDaroFullscreenRenderer()
+                && adConfiguration.isRewarded()
+                && transactionManager.hasNextCreative();
+    }
+
+    private boolean handleDaroRewardedVideoClose() {
+        if (!shouldSuppressDaroRewardedAutoEndCard()) {
+            return false;
+        }
+
+        displayNextEndCardCreative();
+        return true;
+    }
+
+    private void displayNextEndCardCreative() {
+        Transaction transaction = transactionManager.getCurrentTransaction();
+        if (transaction == null || adView == null) {
+            return;
+        }
+
+        AbstractCreative currentVideoCreative = transactionManager.getCurrentCreative();
+        if (currentVideoCreative != null) {
+            currentVideoCreative.destroy();
+        }
+
+        transactionManager.incrementCreativesCounter();
+
+        HTMLCreative endCardCreative = (HTMLCreative) transaction.getCreativeFactories().get(1).getCreative();
+        interstitialManager.setInterstitialDisplayDelegate(endCardCreative);
+        interstitialManager.displayAdViewInInterstitial(contextReference.get(), adView);
     }
 
     private void handleCreativeDisplay() {
@@ -519,5 +569,9 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
 
     public interface AdViewManagerInterstitialDelegate {
         void showInterstitial();
+
+        default boolean handleVideoInterstitialClose() {
+            return false;
+        }
     }
 }

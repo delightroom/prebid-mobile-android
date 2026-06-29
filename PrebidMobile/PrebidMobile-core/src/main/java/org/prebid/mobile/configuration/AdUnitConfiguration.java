@@ -37,6 +37,7 @@ public class AdUnitConfiguration {
     private boolean isSoundButtonVisible = false;
     private boolean isOriginalAdUnit = false;
     private boolean hasEndCard = false;
+    private boolean daroFullscreenRenderer = false;
 
     private int videoSkipOffset = SKIP_OFFSET_NOT_ASSIGNED;
     private int autoRefreshDelayInMillis = 0;
@@ -308,6 +309,14 @@ public class AdUnitConfiguration {
 
     public boolean isRewarded() {
         return isRewarded;
+    }
+
+    public void setDaroFullscreenRenderer(boolean daroFullscreenRenderer) {
+        this.daroFullscreenRenderer = daroFullscreenRenderer;
+    }
+
+    public boolean isDaroFullscreenRenderer() {
+        return daroFullscreenRenderer;
     }
 
     public void setCloseButtonArea(@FloatRange(from = 0, to = 1.0) double closeButtonArea) {

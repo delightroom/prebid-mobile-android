@@ -145,6 +145,11 @@ public class InterstitialManager implements InterstitialManagerInterface {
         }
     }
 
+    public boolean handleVideoInterstitialClose() {
+        return adViewManagerInterstitialDelegate != null
+                && adViewManagerInterstitialDelegate.handleVideoInterstitialClose();
+    }
+
     @Override
     public void interstitialClosed(View viewToClose) {
         LogUtil.debug(TAG, "interstitialClosed");

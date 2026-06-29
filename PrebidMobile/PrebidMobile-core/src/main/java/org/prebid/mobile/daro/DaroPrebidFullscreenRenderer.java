@@ -2,6 +2,7 @@ package org.prebid.mobile.daro;
 
 import android.content.Context;
 import androidx.annotation.NonNull;
+import androidx.annotation.VisibleForTesting;
 import org.prebid.mobile.AdSize;
 import org.prebid.mobile.api.data.AdFormat;
 import org.prebid.mobile.api.exceptions.AdException;
@@ -23,6 +24,7 @@ import java.util.EnumSet;
 import java.util.List;
 
 public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandle {
+    @VisibleForTesting static final int DEFAULT_DARO_SKIP_DELAY_SECONDS = 5;
     private static final int DEFAULT_HTML_REWARD_SECONDS = 5;
 
     private final InterstitialView interstitialView;
@@ -102,15 +104,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         }
         resetRenderState(RenderMode.VIDEO);
 
-        AdUnitConfiguration adConfiguration = new AdUnitConfiguration();
-        adConfiguration.setAdFormats(EnumSet.of(AdFormat.INTERSTITIAL, AdFormat.VAST));
-        adConfiguration.setAdFormat(AdFormat.VAST);
-        adConfiguration.setRewarded(rewarded);
-        adConfiguration.setAdPosition(AdPosition.FULLSCREEN);
-        adConfiguration.setPlacementType(PlacementType.INTERSTITIAL);
-        adConfiguration.addSize(new AdSize(width, height));
-        adConfiguration.setInterstitialSize(width, height);
-        adConfiguration.setAutoRefreshDelay(0);
+        AdUnitConfiguration adConfiguration = createVastAdConfiguration(width, height, rewarded);
         adConfiguration.getRewardManager().clear();
         if (rewarded) {
             adConfiguration.getRewardManager().setRewardedExt(defaultVideoRewardedExt());
@@ -141,15 +135,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         }
         resetRenderState(RenderMode.HTML);
 
-        AdUnitConfiguration adConfiguration = new AdUnitConfiguration();
-        adConfiguration.setAdFormats(EnumSet.of(AdFormat.INTERSTITIAL));
-        adConfiguration.setAdFormat(AdFormat.INTERSTITIAL);
-        adConfiguration.setRewarded(rewarded);
-        adConfiguration.setAdPosition(AdPosition.FULLSCREEN);
-        adConfiguration.setPlacementType(PlacementType.INTERSTITIAL);
-        adConfiguration.addSize(new AdSize(width, height));
-        adConfiguration.setInterstitialSize(width, height);
-        adConfiguration.setAutoRefreshDelay(0);
+        AdUnitConfiguration adConfiguration = createHtmlAdConfiguration(width, height, rewarded);
         adConfiguration.getRewardManager().clear();
         if (rewarded) {
             adConfiguration.getRewardManager().setRewardedExt(defaultHtmlRewardedExt());
@@ -168,6 +154,35 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
             height,
             nativeDisplayVerificationResources(omidVerificationResources)
         );
+    }
+
+    @VisibleForTesting
+    static AdUnitConfiguration createVastAdConfiguration(int width, int height, boolean rewarded) {
+        AdUnitConfiguration adConfiguration = createBaseAdConfiguration(width, height, rewarded);
+        adConfiguration.setAdFormats(EnumSet.of(AdFormat.INTERSTITIAL, AdFormat.VAST));
+        adConfiguration.setAdFormat(AdFormat.VAST);
+        return adConfiguration;
+    }
+
+    @VisibleForTesting
+    static AdUnitConfiguration createHtmlAdConfiguration(int width, int height, boolean rewarded) {
+        AdUnitConfiguration adConfiguration = createBaseAdConfiguration(width, height, rewarded);
+        adConfiguration.setAdFormats(EnumSet.of(AdFormat.INTERSTITIAL));
+        adConfiguration.setAdFormat(AdFormat.INTERSTITIAL);
+        return adConfiguration;
+    }
+
+    private static AdUnitConfiguration createBaseAdConfiguration(int width, int height, boolean rewarded) {
+        AdUnitConfiguration adConfiguration = new AdUnitConfiguration();
+        adConfiguration.setRewarded(rewarded);
+        adConfiguration.setAdPosition(AdPosition.FULLSCREEN);
+        adConfiguration.setPlacementType(PlacementType.INTERSTITIAL);
+        adConfiguration.addSize(new AdSize(width, height));
+        adConfiguration.setInterstitialSize(width, height);
+        adConfiguration.setAutoRefreshDelay(0);
+        adConfiguration.setSkipDelay(DEFAULT_DARO_SKIP_DELAY_SECONDS);
+        adConfiguration.setDaroFullscreenRenderer(true);
+        return adConfiguration;
     }
 
     @NonNull

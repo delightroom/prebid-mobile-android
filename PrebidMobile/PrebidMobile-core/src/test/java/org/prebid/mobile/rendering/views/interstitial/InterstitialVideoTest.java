@@ -78,6 +78,7 @@ public class InterstitialVideoTest {
 
         // ignore, since involves android SDK classes (views). View display is tested in UI tests.
         doNothing().when(spyInterstitialVideo).showDurationTimer(anyLong());
+        doNothing().when(spyInterstitialVideo).showDaroSkipCountdownTimer(anyLong());
         doNothing().when(spyInterstitialVideo).scheduleCloseButtonTask(anyLong());
     }
 
@@ -218,6 +219,16 @@ public class InterstitialVideoTest {
     }
 
     @Test
+    public void close_WhenManagerHandlesVideoClose_DoesNotNotifyInterstitialClosed() {
+        when(mockInterstitialManager.handleVideoInterstitialClose()).thenReturn(true);
+
+        spyInterstitialVideo.close();
+
+        verify(mockInterstitialManager).handleVideoInterstitialClose();
+        verify(mockInterstitialManager, never()).interstitialAdClosed();
+    }
+
+    @Test
     public void removeViewsTest() throws IllegalAccessException {
         FrameLayout mockContainer = mock(FrameLayout.class);
         WhiteBox.field(InterstitialVideo.class, "adViewContainer").set(spyInterstitialVideo, mockContainer);
@@ -353,14 +364,30 @@ public class InterstitialVideoTest {
 
 
     @Test
-    public void scheduleShowCloseBtnTask_VideoDurationLessThanSkipDelay_CallScheduleTimeWithVideoLength() {
+    public void scheduleShowCloseBtnTask_DaroVideoDurationLessThanSkipDelay_UsesSkipDelay() {
         int skipDelay = 10_000;
         long videoDuration = 5_000;
+        when(mockAdConfiguration.isDaroFullscreenRenderer()).thenReturn(true);
         when(spyInterstitialVideo.getDuration(any())).thenReturn(videoDuration);
         when(spyInterstitialVideo.getSkipDelayMs()).thenReturn(skipDelay);
 
         spyInterstitialVideo.scheduleShowButtonTask();
 
+        verify(spyInterstitialVideo).scheduleAllTimers(skipDelay);
+    }
+
+    @Test
+    public void scheduleShowCloseBtnTask_NonDaroVideoDurationLessThanSkipDelay_UsesVideoLength() {
+        int skipDelay = 10_000;
+        long videoDuration = 5_000;
+        when(mockAdConfiguration.isDaroFullscreenRenderer()).thenReturn(false);
+        when(spyInterstitialVideo.getDuration(any())).thenReturn(videoDuration);
+        when(spyInterstitialVideo.getSkipDelayMs()).thenReturn(skipDelay);
+        spyInterstitialVideo.setShowButtonOnComplete(false);
+
+        spyInterstitialVideo.scheduleShowButtonTask();
+
+        assertTrue(spyInterstitialVideo.shouldShowCloseButtonOnComplete());
         verify(spyInterstitialVideo).scheduleAllTimers(videoDuration);
     }
 
@@ -387,22 +414,48 @@ public class InterstitialVideoTest {
     }
 
     @Test
-    public void scheduleAllTimers_RewardedCloseUsesMediaDurationForCompletion() throws Exception {
+    public void scheduleAllTimers_DaroRewardedCloseUsesSkipDelay() throws Exception {
         mockRewardedInterstitial(RewardedCompletionRules.PlaybackEvent.COMPLETE, null);
+        when(mockAdConfiguration.isDaroFullscreenRenderer()).thenReturn(true);
+        when(spyInterstitialVideo.getDuration(any())).thenReturn(16_000L);
+
+        spyInterstitialVideo.scheduleAllTimers(5_000L);
+
+        verify(spyInterstitialVideo).scheduleCloseButtonTask(5_000L);
+    }
+
+    @Test
+    public void scheduleAllTimers_NonDaroRewardedCloseUsesCompletionRules() throws Exception {
+        mockRewardedInterstitial(RewardedCompletionRules.PlaybackEvent.COMPLETE, null);
+        when(mockAdConfiguration.isDaroFullscreenRenderer()).thenReturn(false);
         when(spyInterstitialVideo.getDuration(any())).thenReturn(16_000L);
 
         spyInterstitialVideo.scheduleAllTimers(5_000L);
 
         verify(spyInterstitialVideo).scheduleCloseButtonTask(16_000L);
+        verify(spyInterstitialVideo, never()).showDaroSkipCountdownTimer(anyLong());
+    }
+
+    @Test
+    public void scheduleAllTimers_DaroRewardedSkipCountdownUsesSkipDelay() throws Exception {
+        mockRewardedInterstitial(RewardedCompletionRules.PlaybackEvent.COMPLETE, null);
+        when(mockAdConfiguration.isDaroFullscreenRenderer()).thenReturn(true);
+        when(spyInterstitialVideo.getDuration(any())).thenReturn(16_000L);
+
+        spyInterstitialVideo.scheduleAllTimers(5_000L);
+
+        verify(spyInterstitialVideo).showDaroSkipCountdownTimer(5_000L);
     }
 
     @Test
     public void scheduleRewardResumeTimers_UsesRemainingDurationsDirectly() throws Exception {
         mockRewardedInterstitial(RewardedCompletionRules.PlaybackEvent.COMPLETE, null);
+        when(mockAdConfiguration.isDaroFullscreenRenderer()).thenReturn(true);
 
         spyInterstitialVideo.scheduleRewardResumeTimers(6_000L, 7_000L);
 
         verify(spyInterstitialVideo).showDurationTimer(6_000L);
+        verify(spyInterstitialVideo).showDaroSkipCountdownTimer(7_000L);
         verify(spyInterstitialVideo).scheduleCloseButtonTask(7_000L);
     }
 
@@ -438,6 +491,32 @@ public class InterstitialVideoTest {
         long durationMs = spyInterstitialVideo.getRewardProgressDurationMs(5_000L);
 
         assertEquals(16_000L, durationMs);
+    }
+
+    @Test
+    public void getSkipDelayMs_DaroDoesNotClampToMediaDuration() {
+        InterstitialDisplayPropertiesInternal properties = new InterstitialDisplayPropertiesInternal();
+        properties.skipDelay = 10;
+        when(mockAdConfiguration.isDaroFullscreenRenderer()).thenReturn(true);
+        when(mockInterstitialManager.getInterstitialDisplayProperties()).thenReturn(properties);
+        when(spyInterstitialVideo.getDuration(any())).thenReturn(5_000L);
+
+        int delayMs = spyInterstitialVideo.getSkipDelayMs();
+
+        assertEquals(10_000, delayMs);
+    }
+
+    @Test
+    public void getSkipDelayMs_NonDaroClampsToMediaDuration() {
+        InterstitialDisplayPropertiesInternal properties = new InterstitialDisplayPropertiesInternal();
+        properties.skipDelay = 10;
+        when(mockAdConfiguration.isDaroFullscreenRenderer()).thenReturn(false);
+        when(mockInterstitialManager.getInterstitialDisplayProperties()).thenReturn(properties);
+        when(spyInterstitialVideo.getDuration(any())).thenReturn(5_000L);
+
+        int delayMs = spyInterstitialVideo.getSkipDelayMs();
+
+        assertEquals(5_000, delayMs);
     }
 
 
