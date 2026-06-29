@@ -17,6 +17,7 @@
 package org.prebid.mobile.rendering.views.interstitial;
 
 import android.content.Context;
+import android.os.CountDownTimer;
 import android.os.Handler;
 import android.widget.FrameLayout;
 import org.junit.Before;
@@ -77,6 +78,7 @@ public class InterstitialVideoTest {
 
         // ignore, since involves android SDK classes (views). View display is tested in UI tests.
         doNothing().when(spyInterstitialVideo).showDurationTimer(anyLong());
+        doNothing().when(spyInterstitialVideo).scheduleCloseButtonTask(anyLong());
     }
 
     @Test
@@ -148,6 +150,17 @@ public class InterstitialVideoTest {
     }
 
     @Test
+    public void pauseVideo_CancelsCountdownWithoutFinishing() throws IllegalAccessException {
+        CountDownTimer mockCountDownTimer = mock(CountDownTimer.class);
+        WhiteBox.field(InterstitialVideo.class, "countDownTimer").set(spyInterstitialVideo, mockCountDownTimer);
+
+        spyInterstitialVideo.pauseVideo();
+
+        verify(mockCountDownTimer).cancel();
+        verify(mockCountDownTimer, never()).onFinish();
+    }
+
+    @Test
     public void scheduleShowCloseBtnAfterResumeTest() {
         spyInterstitialVideo.setRemainingTimeInMs(5000);
         spyInterstitialVideo.setShowButtonOnComplete(false);
@@ -156,6 +169,39 @@ public class InterstitialVideoTest {
 
         assertFalse(spyInterstitialVideo.shouldShowCloseButtonOnComplete());
         verify(spyInterstitialVideo, times(1)).scheduleAllTimers(5 * 1000L);
+    }
+
+    @Test
+    public void scheduleRewardTimersAfterResume_UsesRemainingProgressAndCloseTimes() throws Exception {
+        mockRewardedInterstitial(RewardedCompletionRules.PlaybackEvent.COMPLETE, null);
+        spyInterstitialVideo.setRemainingTimeInMs(6_000);
+        spyInterstitialVideo.setRemainingCloseDelayInMs(7_000);
+
+        spyInterstitialVideo.resumeVideo();
+
+        verify(spyInterstitialVideo).scheduleRewardResumeTimers(6_000, 7_000);
+    }
+
+    @Test
+    public void scheduleRewardTimersAfterResume_WhenProgressComplete_UsesRemainingCloseTime() throws Exception {
+        mockRewardedInterstitial(RewardedCompletionRules.PlaybackEvent.COMPLETE, null);
+        spyInterstitialVideo.setRemainingTimeInMs(0);
+        spyInterstitialVideo.setRemainingCloseDelayInMs(3_000);
+
+        spyInterstitialVideo.resumeVideo();
+
+        verify(spyInterstitialVideo).scheduleRewardResumeTimers(0, 3_000);
+    }
+
+    @Test
+    public void scheduleRewardTimersAfterResume_WhenCloseTimeAlmostFinished_ReschedulesImmediately() throws Exception {
+        mockRewardedInterstitial(RewardedCompletionRules.PlaybackEvent.COMPLETE, null);
+        spyInterstitialVideo.setRemainingTimeInMs(0);
+        spyInterstitialVideo.setRemainingCloseDelayInMs(500);
+
+        spyInterstitialVideo.resumeVideo();
+
+        verify(spyInterstitialVideo).scheduleRewardResumeTimers(0, 500);
     }
 
     @Test
@@ -330,6 +376,70 @@ public class InterstitialVideoTest {
         verify(spyInterstitialVideo).scheduleAllTimers(skipDelay);
     }
 
+    @Test
+    public void scheduleAllTimers_RewardedProgressUsesMediaDuration() throws Exception {
+        mockRewardedInterstitial(RewardedCompletionRules.PlaybackEvent.COMPLETE, null);
+        when(spyInterstitialVideo.getDuration(any())).thenReturn(16_000L);
+
+        spyInterstitialVideo.scheduleAllTimers(5_000L);
+
+        verify(spyInterstitialVideo).showDurationTimer(16_000L);
+    }
+
+    @Test
+    public void scheduleAllTimers_RewardedCloseUsesMediaDurationForCompletion() throws Exception {
+        mockRewardedInterstitial(RewardedCompletionRules.PlaybackEvent.COMPLETE, null);
+        when(spyInterstitialVideo.getDuration(any())).thenReturn(16_000L);
+
+        spyInterstitialVideo.scheduleAllTimers(5_000L);
+
+        verify(spyInterstitialVideo).scheduleCloseButtonTask(16_000L);
+    }
+
+    @Test
+    public void scheduleRewardResumeTimers_UsesRemainingDurationsDirectly() throws Exception {
+        mockRewardedInterstitial(RewardedCompletionRules.PlaybackEvent.COMPLETE, null);
+
+        spyInterstitialVideo.scheduleRewardResumeTimers(6_000L, 7_000L);
+
+        verify(spyInterstitialVideo).showDurationTimer(6_000L);
+        verify(spyInterstitialVideo).scheduleCloseButtonTask(7_000L);
+    }
+
+    @Test
+    public void showDurationTimer_DaroChromeUnlocksImmediatelyForZeroDuration() throws Exception {
+        DaroFullscreenChromeView chromeView = mock(DaroFullscreenChromeView.class);
+        WhiteBox.field(InterstitialVideo.class, "daroChromeView").set(spyInterstitialVideo, chromeView);
+        doCallRealMethod().when(spyInterstitialVideo).showDurationTimer(anyLong());
+
+        spyInterstitialVideo.showDurationTimer(0);
+
+        verify(chromeView).setProgressFraction(1f);
+        verify(chromeView).showRewardUnlocked(true);
+    }
+
+    @Test
+    public void changeCloseViewVisibility_DaroChromeUsesSkipAvailableState() throws Exception {
+        DaroFullscreenChromeView chromeView = mock(DaroFullscreenChromeView.class);
+        WhiteBox.field(InterstitialVideo.class, "daroChromeView").set(spyInterstitialVideo, chromeView);
+
+        spyInterstitialVideo.changeCloseViewVisibility(android.view.View.VISIBLE);
+        spyInterstitialVideo.changeCloseViewVisibility(android.view.View.GONE);
+
+        verify(chromeView).showSkipAvailable();
+        verify(chromeView).hideSkip();
+    }
+
+    @Test
+    public void getRewardProgressDurationMs_ClampsVideoTimeToMediaDuration() throws Exception {
+        mockRewardedInterstitial(null, 30);
+        when(spyInterstitialVideo.getDuration(any())).thenReturn(16_000L);
+
+        long durationMs = spyInterstitialVideo.getRewardProgressDurationMs(5_000L);
+
+        assertEquals(16_000L, durationMs);
+    }
+
 
     @Test
     public void rewarded_getTimeToReward_default() {
@@ -400,6 +510,22 @@ public class InterstitialVideoTest {
         Integer timeToReward = InterstitialVideo.getTimeToReward(10_000, mockConfig);
 
         assertEquals(Integer.valueOf(expected), timeToReward);
+    }
+
+    private void mockRewardedInterstitial(
+        RewardedCompletionRules.PlaybackEvent event,
+        Integer videoTime
+    ) throws Exception {
+        WhiteBox.field(InterstitialVideo.class, "isRewarded").set(spyInterstitialVideo, true);
+
+        RewardedExt rewardedExt = mock(RewardedExt.class);
+        RewardManager mockRewardManager = mock(RewardManager.class);
+        when(mockAdConfiguration.getRewardManager()).thenReturn(mockRewardManager);
+        when(mockRewardManager.getRewardedExt()).thenReturn(rewardedExt);
+        when(rewardedExt.getCompletionRules()).thenReturn(
+            new RewardedCompletionRules(null, videoTime, null, null, event, null)
+        );
+        when(rewardedExt.getClosingRules()).thenReturn(new RewardedClosingRules());
     }
 
 

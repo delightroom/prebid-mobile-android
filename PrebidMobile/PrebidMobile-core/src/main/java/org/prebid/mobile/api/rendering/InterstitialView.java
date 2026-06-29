@@ -37,11 +37,13 @@ import org.prebid.mobile.rendering.models.internal.InternalFriendlyObstruction;
 import org.prebid.mobile.rendering.networking.tracking.TrackingManager;
 import org.prebid.mobile.rendering.session.manager.OmAdSessionManager;
 import org.prebid.mobile.rendering.utils.constants.IntentActions;
+import org.prebid.mobile.rendering.utils.helpers.CustomInsets;
 import org.prebid.mobile.rendering.utils.helpers.InsetsUtils;
 import org.prebid.mobile.rendering.video.OmEventTracker;
 import org.prebid.mobile.rendering.views.AdViewManager;
 import org.prebid.mobile.rendering.views.AdViewManagerListener;
 import org.prebid.mobile.rendering.views.base.BaseAdView;
+import org.prebid.mobile.rendering.views.interstitial.DaroFullscreenChromeView;
 import org.prebid.mobile.rendering.views.interstitial.InterstitialVideo;
 
 import java.util.Arrays;
@@ -62,6 +64,19 @@ public class InterstitialView extends BaseAdView {
     @Override
     protected void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+
+        DaroFullscreenChromeView daroChromeView = findDaroChromeView();
+        if (daroChromeView != null) {
+            CustomInsets navigationInsets = InsetsUtils.getNavigationInsets(getContext());
+            CustomInsets cutoutInsets = InsetsUtils.getCutoutInsets(getContext());
+            daroChromeView.setSafeAreaInsets(
+                navigationInsets.getTop() + cutoutInsets.getTop(),
+                navigationInsets.getRight() + cutoutInsets.getRight(),
+                navigationInsets.getBottom() + cutoutInsets.getBottom(),
+                navigationInsets.getLeft() + cutoutInsets.getLeft()
+            );
+            return;
+        }
 
         List<View> views = Arrays.asList(
             findViewById(R.id.iv_close_interstitial),
@@ -305,27 +320,57 @@ public class InterstitialView extends BaseAdView {
     }
 
     protected InternalFriendlyObstruction[] formInterstitialObstructionsArray() {
-        InternalFriendlyObstruction[] obstructionArray = new InternalFriendlyObstruction[5];
+        InternalFriendlyObstruction[] obstructionArray = new InternalFriendlyObstruction[9];
 
-        View closeInterstitial = findViewById(R.id.iv_close_interstitial);
-        View skipInterstitial = findViewById(R.id.iv_skip);
-        View countDownTimer = findViewById(R.id.rl_count_down);
-        View actionButton = findViewById(R.id.tv_learn_more);
+        View closeInterstitial = findDaroControl(R.id.iv_close_interstitial);
+        View skipInterstitial = findDaroControl(R.id.iv_skip);
+        View countDownTimer = findDaroControl(R.id.rl_count_down);
+        View actionButton = findDaroControl(R.id.tv_learn_more);
+        View soundButton = findDaroControl(R.id.iv_sound_interstitial);
+        View rewardToast = findDaroControl(R.id.daro_reward_toast);
+        View adBadge = findDaroControl(R.id.daro_ad_badge);
+        View adChoice = findDaroControl(R.id.daro_ad_choice);
 
         obstructionArray[0] = new InternalFriendlyObstruction(closeInterstitial, InternalFriendlyObstruction.Purpose.CLOSE_AD, null);
         obstructionArray[1] = new InternalFriendlyObstruction(skipInterstitial, InternalFriendlyObstruction.Purpose.CLOSE_AD, null);
-        obstructionArray[2] = new InternalFriendlyObstruction(countDownTimer, InternalFriendlyObstruction.Purpose.OTHER, "CountDownTimer");
+        obstructionArray[2] = new InternalFriendlyObstruction(countDownTimer, InternalFriendlyObstruction.Purpose.VIDEO_CONTROLS, "Reward progress");
         obstructionArray[3] = new InternalFriendlyObstruction(actionButton, InternalFriendlyObstruction.Purpose.OTHER, "Action button");
 
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-            View dialogRoot = closeInterstitial.getRootView();
+        View navigationAnchor = closeInterstitial != null
+            ? closeInterstitial
+            : skipInterstitial != null ? skipInterstitial : soundButton;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP && navigationAnchor != null) {
+            View dialogRoot = navigationAnchor.getRootView();
             View navigationBar = dialogRoot.findViewById(android.R.id.navigationBarBackground);
             obstructionArray[4] = new InternalFriendlyObstruction(navigationBar, InternalFriendlyObstruction.Purpose.OTHER, "Bottom navigation bar");
         } else {
             obstructionArray[4] = null;
         }
+        obstructionArray[5] = new InternalFriendlyObstruction(soundButton, InternalFriendlyObstruction.Purpose.VIDEO_CONTROLS, "Sound control");
+        obstructionArray[6] = new InternalFriendlyObstruction(rewardToast, InternalFriendlyObstruction.Purpose.VIDEO_CONTROLS, "Reward status");
+        obstructionArray[7] = new InternalFriendlyObstruction(adBadge, InternalFriendlyObstruction.Purpose.OTHER, "Daro ad badge");
+        obstructionArray[8] = new InternalFriendlyObstruction(adChoice, InternalFriendlyObstruction.Purpose.OTHER, "AdChoices");
 
         return obstructionArray;
+    }
+
+    private View findDaroControl(int id) {
+        View view = findViewById(id);
+        if (view != null) {
+            return view;
+        }
+
+        DaroFullscreenChromeView daroChromeView = findDaroChromeView();
+        return daroChromeView != null ? daroChromeView.findViewById(id) : null;
+    }
+
+    private DaroFullscreenChromeView findDaroChromeView() {
+        DaroFullscreenChromeView daroChromeView = findViewById(R.id.daro_fullscreen_chrome);
+        if (daroChromeView != null) {
+            return daroChromeView;
+        }
+
+        return interstitialVideo != null ? interstitialVideo.getDaroFullscreenChromeView() : null;
     }
 
     private void handleDialogEvent(DialogEventListener.EventType eventType) {

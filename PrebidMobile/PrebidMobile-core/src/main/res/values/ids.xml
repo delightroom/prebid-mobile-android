@@ -17,4 +17,9 @@
 
 <resources>
     <item name="web_view_banner" type="id"/>
+    <item name="daro_fullscreen_chrome" type="id"/>
+    <item name="daro_progress_fill" type="id"/>
+    <item name="daro_reward_toast" type="id"/>
+    <item name="daro_ad_badge" type="id"/>
+    <item name="daro_ad_choice" type="id"/>
 </resources>

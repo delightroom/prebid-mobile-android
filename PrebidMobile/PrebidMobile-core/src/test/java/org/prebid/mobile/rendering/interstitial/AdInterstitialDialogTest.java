@@ -23,12 +23,15 @@ import android.widget.FrameLayout;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
+import org.prebid.mobile.core.R;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardManager;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardedClosingRules;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardedCompletionRules;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardedExt;
 import org.prebid.mobile.rendering.models.InterstitialDisplayPropertiesInternal;
+import org.prebid.mobile.rendering.views.interstitial.DaroFullscreenChromeView;
 import org.prebid.mobile.rendering.views.interstitial.InterstitialManager;
 import org.prebid.mobile.rendering.views.webview.WebViewBase;
 import org.prebid.mobile.rendering.views.webview.mraid.BaseJSInterface;
@@ -42,6 +45,8 @@ import org.robolectric.annotation.LooperMode;
 
 import java.lang.reflect.Field;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 import static org.robolectric.annotation.LooperMode.Mode.LEGACY;
 
@@ -101,6 +106,89 @@ public class AdInterstitialDialogTest {
         adInterstitialDialog.cancel();
         verify(mockBaseJSInterface).onStateChange(JSInterface.STATE_DEFAULT);
         verify(mockWebViewBase).detachFromParent();
+    }
+
+    @Test
+    public void addCloseView_withEndCard_UsesDaroEndCardChrome() {
+        InterstitialDisplayPropertiesInternal properties = new InterstitialDisplayPropertiesInternal();
+        AdUnitConfiguration config = new AdUnitConfiguration();
+        config.setHasEndCard(true);
+        properties.config = config;
+        when(mockInterstitialManager.getInterstitialDisplayProperties()).thenReturn(properties);
+        adInterstitialDialog = spy(new AdInterstitialDialog(
+            mockContext,
+            mockWebViewBase,
+            mockAdContainer,
+            mockInterstitialManager
+        ));
+        clearInvocations(mockAdContainer, mockInterstitialManager);
+
+        adInterstitialDialog.addCloseView();
+
+        ArgumentCaptor<View> chromeCaptor = ArgumentCaptor.forClass(View.class);
+        verify(mockAdContainer).addView(chromeCaptor.capture(), any(FrameLayout.LayoutParams.class));
+        DaroFullscreenChromeView chromeView = (DaroFullscreenChromeView) chromeCaptor.getValue();
+
+        assertEquals(View.VISIBLE, chromeView.findViewById(R.id.iv_close_interstitial).getVisibility());
+        assertEquals(View.GONE, chromeView.findViewById(R.id.iv_sound_interstitial).getVisibility());
+        assertEquals(View.GONE, chromeView.findViewById(R.id.iv_skip).getVisibility());
+        assertEquals(View.GONE, chromeView.findViewById(R.id.tv_learn_more).getVisibility());
+
+        assertTrue(chromeView.getCloseButton().performClick());
+        verify(mockInterstitialManager).interstitialClosed(mockWebViewBase);
+    }
+
+    @Test
+    public void addCloseView_withEndCard_KeepsCloseVisibleDespiteStoredHiddenState() {
+        InterstitialDisplayPropertiesInternal properties = new InterstitialDisplayPropertiesInternal();
+        AdUnitConfiguration config = new AdUnitConfiguration();
+        config.setHasEndCard(true);
+        properties.config = config;
+        when(mockInterstitialManager.getInterstitialDisplayProperties()).thenReturn(properties);
+        adInterstitialDialog = spy(new AdInterstitialDialog(
+            mockContext,
+            mockWebViewBase,
+            mockAdContainer,
+            mockInterstitialManager
+        ));
+        clearInvocations(mockAdContainer, mockInterstitialManager);
+
+        adInterstitialDialog.changeCloseViewVisibility(View.GONE);
+        adInterstitialDialog.addCloseView();
+
+        ArgumentCaptor<View> chromeCaptor = ArgumentCaptor.forClass(View.class);
+        verify(mockAdContainer).addView(chromeCaptor.capture(), any(FrameLayout.LayoutParams.class));
+        DaroFullscreenChromeView chromeView = (DaroFullscreenChromeView) chromeCaptor.getValue();
+        assertEquals(View.VISIBLE, chromeView.getCloseButton().getVisibility());
+
+        adInterstitialDialog.changeCloseViewVisibility(View.VISIBLE);
+
+        assertEquals(View.VISIBLE, chromeView.getCloseButton().getVisibility());
+    }
+
+    @Test
+    public void scheduleCloseButtonDisplaying_withEndCard_KeepsSkipHiddenAndCloseVisible() {
+        InterstitialDisplayPropertiesInternal properties = new InterstitialDisplayPropertiesInternal();
+        AdUnitConfiguration config = new AdUnitConfiguration();
+        config.setHasEndCard(true);
+        properties.config = config;
+        when(mockInterstitialManager.getInterstitialDisplayProperties()).thenReturn(properties);
+        adInterstitialDialog = spy(new AdInterstitialDialog(
+            mockContext,
+            mockWebViewBase,
+            mockAdContainer,
+            mockInterstitialManager
+        ));
+        clearInvocations(mockAdContainer, mockInterstitialManager);
+        adInterstitialDialog.addCloseView();
+        ArgumentCaptor<View> chromeCaptor = ArgumentCaptor.forClass(View.class);
+        verify(mockAdContainer).addView(chromeCaptor.capture(), any(FrameLayout.LayoutParams.class));
+        DaroFullscreenChromeView chromeView = (DaroFullscreenChromeView) chromeCaptor.getValue();
+
+        adInterstitialDialog.scheduleCloseButtonDisplaying(12_000, false);
+
+        assertEquals(View.GONE, chromeView.findViewById(R.id.iv_skip).getVisibility());
+        assertEquals(View.VISIBLE, chromeView.findViewById(R.id.iv_close_interstitial).getVisibility());
     }
 
 

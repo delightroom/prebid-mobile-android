@@ -21,7 +21,6 @@ import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageView;
 import androidx.annotation.VisibleForTesting;
 import org.prebid.mobile.LogUtil;
 import org.prebid.mobile.core.R;
@@ -158,9 +157,14 @@ public class ViewExposureChecker {
 
     // don't test child if it is viewGroup and transparent
     private boolean isFriendlyObstruction(View child) {
-        boolean result = (child instanceof ImageView && child.getId() == R.id.iv_close_interstitial)
-            || (child instanceof ImageView && child.getId() == R.id.iv_skip)
-            || child.getId() == R.id.rl_count_down;
+        boolean result = child.getId() == R.id.iv_close_interstitial
+            || child.getId() == R.id.iv_skip
+            || child.getId() == R.id.iv_sound_interstitial
+            || child.getId() == R.id.rl_count_down
+            || child.getId() == R.id.tv_learn_more
+            || child.getId() == R.id.daro_reward_toast
+            || child.getId() == R.id.daro_ad_badge
+            || child.getId() == R.id.daro_ad_choice;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             result = result || child.getId() == android.R.id.navigationBarBackground;
         }
@@ -168,6 +172,9 @@ public class ViewExposureChecker {
     }
 
     private void collectObstructionsFrom(View child) {
+        if (isFriendlyObstruction(child)) {
+            return;
+        }
         if (!child.isShown() || isViewTransparent(child)) { // not obstructing
             return;
         }

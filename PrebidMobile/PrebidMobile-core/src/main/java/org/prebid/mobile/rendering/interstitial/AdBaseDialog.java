@@ -135,6 +135,12 @@ public abstract class AdBaseDialog extends Dialog {
         this.listener = listener;
     }
 
+    protected void notifyDialogEvent(DialogEventListener.EventType eventType) {
+        if (listener != null) {
+            listener.onEvent(eventType);
+        }
+    }
+
     @Override
     public void onWindowFocusChanged(boolean hasWindowFocus) {
 
@@ -152,14 +158,15 @@ public abstract class AdBaseDialog extends Dialog {
     @Override
     public void cancel() {
         super.cancel();
-        if (listener != null) {
-            listener.onEvent(DialogEventListener.EventType.CLOSED);
-        }
+        notifyDialogEvent(DialogEventListener.EventType.CLOSED);
     }
 
     @VisibleForTesting
     void setCloseView(View closeView) {
         this.closeView = closeView;
+        if (this.closeView != null) {
+            this.closeView.setVisibility(closeViewVisibility);
+        }
     }
 
     public View getDisplayView() {

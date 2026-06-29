@@ -18,6 +18,7 @@ package org.prebid.mobile.rendering.views.interstitial;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.os.Build;
 import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Looper;
@@ -28,6 +29,7 @@ import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.RotateAnimation;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
@@ -37,10 +39,12 @@ import org.prebid.mobile.LogUtil;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
 import org.prebid.mobile.core.R;
 import org.prebid.mobile.rendering.interstitial.AdBaseDialog;
+import org.prebid.mobile.rendering.interstitial.DialogEventListener;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardedCompletionRules;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardedExt;
 import org.prebid.mobile.rendering.models.InterstitialDisplayPropertiesInternal;
 import org.prebid.mobile.rendering.sdk.PrebidContextHolder;
+import org.prebid.mobile.rendering.utils.helpers.CustomInsets;
 import org.prebid.mobile.rendering.utils.helpers.InsetsUtils;
 import org.prebid.mobile.rendering.utils.helpers.Utils;
 import org.prebid.mobile.rendering.views.base.BaseAdView;
@@ -83,8 +87,13 @@ public class InterstitialVideo extends AdBaseDialog {
 
     private CountDownTimer countDownTimer;
     @Nullable private RelativeLayout lytCountDownCircle;
+    @Nullable private DaroFullscreenChromeView daroChromeView;
+    @Nullable private View legacyCallToActionView;
 
     private int remainingTimeInMs = -1;
+    private int remainingCloseDelayInMs = -1;
+    private long closeButtonDelayInMs = -1;
+    private long closeButtonTimerStartedAtMs = -1;
     private boolean videoPaused = true;
 
     public InterstitialVideo(
@@ -119,8 +128,25 @@ public class InterstitialVideo extends AdBaseDialog {
     @Override
     protected void handleDialogShow() {
         handleAdViewShow();
+        ensureDaroChromeView();
+        ensureDaroSoundControl();
 
         scheduleShowButtonTask();
+    }
+
+    @Override
+    public void changeCloseViewVisibility(int visibility) {
+        if (daroChromeView != null) {
+            if (visibility == View.VISIBLE) {
+                daroChromeView.showSkipAvailable();
+            } else {
+                daroChromeView.hideSkip();
+            }
+            keepDaroChromeOnTop();
+            return;
+        }
+
+        super.changeCloseViewVisibility(visibility);
     }
 
     public boolean shouldShowCloseButtonOnComplete() {
@@ -190,8 +216,21 @@ public class InterstitialVideo extends AdBaseDialog {
     public void resumeVideo() {
         LogUtil.debug(TAG, "Action: resumeVideo");
         videoPaused = false;
-        if (getRemainingTimerTimeInMs() != AdUnitConfiguration.SKIP_OFFSET_NOT_ASSIGNED && getRemainingTimerTimeInMs() > 500L) {
-            scheduleShowCloseBtnTask(adViewContainer, getRemainingTimerTimeInMs());
+
+        int remainingTimerTimeInMs = getRemainingTimerTimeInMs();
+        int closeDelayInMs = getRemainingCloseDelayInMs();
+        if (isRewarded) {
+            if (remainingTimerTimeInMs > 500L || closeDelayInMs >= 0) {
+                scheduleRewardResumeTimers(
+                    Math.max(0, remainingTimerTimeInMs),
+                    closeDelayInMs >= 0 ? closeDelayInMs : Math.max(0, remainingTimerTimeInMs)
+                );
+            }
+            return;
+        }
+
+        if (remainingTimerTimeInMs != AdUnitConfiguration.SKIP_OFFSET_NOT_ASSIGNED && remainingTimerTimeInMs > 500L) {
+            scheduleShowCloseBtnTask(adViewContainer, remainingTimerTimeInMs);
         }
     }
 
@@ -249,6 +288,55 @@ public class InterstitialVideo extends AdBaseDialog {
         setOnKeyListener((dialog, keyCode, event) -> keyCode == KeyEvent.KEYCODE_BACK);
     }
 
+    @Override
+    protected void addCloseView() {
+        ensureDaroChromeView();
+        if (daroChromeView == null) {
+            super.addCloseView();
+        }
+    }
+
+    @Override
+    protected void addSkipView() {
+        ensureDaroChromeView();
+        if (daroChromeView == null) {
+            super.addSkipView();
+            return;
+        }
+
+        skipView = daroChromeView.getSkipButton();
+        skipView.setOnClickListener(v -> {
+            if (v.isEnabled()) {
+                handleCloseClick();
+            }
+        });
+    }
+
+    @Override
+    protected void addSoundView(boolean isMutedOnStart) {
+        ensureDaroChromeView();
+        if (daroChromeView == null) {
+            super.addSoundView(isMutedOnStart);
+            return;
+        }
+
+        soundView = daroChromeView.getSoundButton();
+        soundView.setVisibility(View.VISIBLE);
+        daroChromeView.setSoundButtonVisible(true);
+        daroChromeView.setSoundMuted(isMutedOnStart);
+        soundView.setOnClickListener(view -> {
+            ImageView imageView = (ImageView) view;
+            String tag = (String) imageView.getTag();
+            if ("off".equals(tag)) {
+                notifyDialogEvent(DialogEventListener.EventType.MUTE);
+                daroChromeView.setSoundMuted(true);
+            } else {
+                notifyDialogEvent(DialogEventListener.EventType.UNMUTE);
+                daroChromeView.setSoundMuted(false);
+            }
+        });
+    }
+
     private long getOffsetLong(View view) {
         return (view instanceof BaseAdView) ? ((BaseAdView) view).getMediaOffset() : AdUnitConfiguration.SKIP_OFFSET_NOT_ASSIGNED;
     }
@@ -288,8 +376,20 @@ public class InterstitialVideo extends AdBaseDialog {
                 queueUIThreadTask(() -> {
                     try {
                         if (useSkipButton) {
-                            skipView.setVisibility(View.VISIBLE);
+                            remainingCloseDelayInMs = 0;
+                            closeButtonDelayInMs = -1;
+                            closeButtonTimerStartedAtMs = -1;
+                            if (daroChromeView != null) {
+                                daroChromeView.showSkipAvailable();
+                                keepDaroChromeOnTop();
+                            }
+                            if (skipView != null) {
+                                skipView.setVisibility(View.VISIBLE);
+                            }
                         } else {
+                            remainingCloseDelayInMs = 0;
+                            closeButtonDelayInMs = -1;
+                            closeButtonTimerStartedAtMs = -1;
                             changeCloseViewVisibility(View.VISIBLE);
                         }
                     } catch (Exception e) {
@@ -307,6 +407,8 @@ public class InterstitialVideo extends AdBaseDialog {
     }
 
     private void stopTimer() {
+        updateRemainingCloseDelay();
+
         if (timer != null) {
             if (showCloseButtonTask != null) {
                 showCloseButtonTask.cancel();
@@ -323,13 +425,16 @@ public class InterstitialVideo extends AdBaseDialog {
     private void stopCountDownTimer() {
         if (countDownTimer != null) {
             countDownTimer.cancel();
-            countDownTimer.onFinish();
             countDownTimer = null;
         }
     }
 
     private int getRemainingTimerTimeInMs() {
         return remainingTimeInMs;
+    }
+
+    private int getRemainingCloseDelayInMs() {
+        return remainingCloseDelayInMs;
     }
 
     private void handleAdViewShow() {
@@ -352,25 +457,57 @@ public class InterstitialVideo extends AdBaseDialog {
             long delayToShowCloseButton = delayInMs;
 
             if (isRewarded) {
-                delayToShowCloseButton = getDelayToShowCloseButton((int) delayInMs, config);
+                delayToShowCloseButton = getDelayToShowCloseButton((int) getRewardTimelineDurationMs(delayInMs), config);
             }
 
-            timer.schedule(showCloseButtonTask, delayToShowCloseButton);
+            scheduleCloseButtonTask(delayToShowCloseButton);
         }
 
         // Show timer until close
         if (isRewarded) {
-            long progressBarDuration = delayInMs;
-
-            Integer completionTime = getTimeToReward((int) delayInMs, config);
-            if (completionTime != null) {
-                progressBarDuration = completionTime;
-            }
-
-            showDurationTimer(progressBarDuration);
+            showDurationTimer(getRewardProgressDurationMs(delayInMs));
         } else {
             startTimer(delayInMs);
         }
+    }
+
+    @VisibleForTesting
+    protected void scheduleCloseButtonTask(long delayInMs) {
+        remainingCloseDelayInMs = (int) delayInMs;
+        closeButtonDelayInMs = delayInMs;
+        closeButtonTimerStartedAtMs = System.currentTimeMillis();
+        timer.schedule(showCloseButtonTask, delayInMs);
+    }
+
+    @VisibleForTesting
+    protected void scheduleRewardResumeTimers(
+        long progressRemainingMs,
+        long closeDelayRemainingMs
+    ) {
+        stopTimer();
+
+        timer = new Timer();
+        createCurrentTimerTask();
+        scheduleCloseButtonTask(Math.max(0, closeDelayRemainingMs));
+        showDurationTimer(Math.max(0, progressRemainingMs));
+    }
+
+    @VisibleForTesting
+    protected long getRewardTimelineDurationMs(long fallbackDurationMs) {
+        long mediaDurationMs = getDuration(adViewContainer);
+        return mediaDurationMs > 0 ? mediaDurationMs : fallbackDurationMs;
+    }
+
+    @VisibleForTesting
+    protected long getRewardProgressDurationMs(long fallbackDurationMs) {
+        long rewardBaseDurationMs = getRewardTimelineDurationMs(fallbackDurationMs);
+
+        Integer completionTime = getTimeToReward((int) rewardBaseDurationMs, config);
+        if (completionTime == null) {
+            return rewardBaseDurationMs;
+        }
+
+        return Utils.clampInMillis(completionTime, 0, (int) rewardBaseDurationMs);
     }
 
     protected void startTimer(long durationInMillis) {
@@ -382,11 +519,22 @@ public class InterstitialVideo extends AdBaseDialog {
             public void onTick(long millisUntilFinished) {
                 int roundedMillis = Math.round((float) millisUntilFinished / 1000f);
                 remainingTimeInMs = (int) millisUntilFinished;
+                updateDaroSkipCountdown(roundedMillis);
+                updateDaroProgress(durationInMillis, millisUntilFinished);
             }
 
             @Override
-            public void onFinish() {}
+            public void onFinish() {
+                remainingTimeInMs = 0;
+                updateDaroProgress(durationInMillis, 0);
+                if (daroChromeView != null) {
+                    daroChromeView.showSkipAvailable();
+                    keepDaroChromeOnTop();
+                }
+            }
         };
+        updateDaroSkipCountdown(Math.round((float) durationInMillis / 1000f));
+        updateDaroProgress(durationInMillis, durationInMillis);
         countDownTimer.start();
     }
 
@@ -396,6 +544,36 @@ public class InterstitialVideo extends AdBaseDialog {
     @VisibleForTesting
     protected void showDurationTimer(long durationInMillis) {
         if (durationInMillis == 0) {
+            remainingTimeInMs = 0;
+            if (daroChromeView != null) {
+                daroChromeView.setProgressFraction(1f);
+                daroChromeView.showRewardUnlocked(true);
+                showDaroCallToActionForReward();
+            }
+            return;
+        }
+
+        if (daroChromeView != null) {
+            if (countDownTimer != null) {
+                countDownTimer.cancel();
+            }
+            countDownTimer = new CountDownTimer(durationInMillis, 100) {
+                @Override
+                public void onTick(long millisUntilFinished) {
+                    remainingTimeInMs = (int) millisUntilFinished;
+                    updateDaroProgress(durationInMillis, millisUntilFinished);
+                }
+
+                @Override
+                public void onFinish() {
+                    remainingTimeInMs = 0;
+                    updateDaroProgress(durationInMillis, 0);
+                    daroChromeView.showRewardUnlocked(true);
+                    showDaroCallToActionForReward();
+                }
+            };
+            updateDaroProgress(durationInMillis, durationInMillis);
+            countDownTimer.start();
             return;
         }
 
@@ -440,7 +618,9 @@ public class InterstitialVideo extends AdBaseDialog {
 
                 if (isRewarded && !hasEndCard) {
                     View learnMore = adViewContainer.findViewById(R.id.tv_learn_more);
-                    learnMore.setVisibility(View.VISIBLE);
+                    if (learnMore != null) {
+                        learnMore.setVisibility(View.VISIBLE);
+                    }
                 }
             }
         };
@@ -455,6 +635,11 @@ public class InterstitialVideo extends AdBaseDialog {
     @VisibleForTesting
     protected void setRemainingTimeInMs(int value) {
         remainingTimeInMs = value;
+    }
+
+    @VisibleForTesting
+    protected void setRemainingCloseDelayInMs(int value) {
+        remainingCloseDelayInMs = value;
     }
 
     protected int getSkipDelayMs() {
@@ -498,6 +683,138 @@ public class InterstitialVideo extends AdBaseDialog {
 
         int postRewardTime = rewardedExt.getClosingRules().getPostRewardTime();
         return Math.min(duration, completionTime + (postRewardTime * 1000));
+    }
+
+    @VisibleForTesting
+    @Nullable
+    public DaroFullscreenChromeView getDaroFullscreenChromeView() {
+        return daroChromeView;
+    }
+
+    @VisibleForTesting
+    protected DaroFullscreenChromeView createDaroFullscreenChromeView(Context context) {
+        return new DaroFullscreenChromeView(context);
+    }
+
+    private void ensureDaroChromeView() {
+        if (daroChromeView != null || adViewContainer == null) {
+            return;
+        }
+
+        Context context = contextReference.get();
+        if (context == null) {
+            return;
+        }
+
+        legacyCallToActionView = adViewContainer.findViewById(R.id.tv_learn_more);
+        daroChromeView = createDaroFullscreenChromeView(context);
+        daroChromeView.setSoundButtonVisible(false);
+        bindLegacyCallToAction();
+        applyDaroChromeInsets();
+        Views.removeFromParent(daroChromeView);
+        addContentView(
+            daroChromeView,
+            new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        );
+        keepDaroChromeOnTop();
+    }
+
+    private void ensureDaroSoundControl() {
+        if (daroChromeView == null) {
+            return;
+        }
+
+        boolean isMuted = false;
+        if (interstitialManager != null && interstitialManager.getInterstitialDisplayProperties() != null) {
+            isMuted = interstitialManager.getInterstitialDisplayProperties().isMuted;
+        }
+        addSoundView(isMuted);
+    }
+
+    private void bindLegacyCallToAction() {
+        if (daroChromeView == null) {
+            return;
+        }
+
+        boolean showCallToAction = false;
+        if (legacyCallToActionView != null) {
+            showCallToAction = !isRewarded && legacyCallToActionView.getVisibility() == View.VISIBLE;
+            legacyCallToActionView.setVisibility(View.GONE);
+            legacyCallToActionView.setId(View.NO_ID);
+            daroChromeView.getCallToActionButton().setOnClickListener(v -> legacyCallToActionView.performClick());
+        }
+        daroChromeView.setCallToActionVisible(showCallToAction);
+    }
+
+    private void showDaroCallToActionForReward() {
+        if (daroChromeView != null && isRewarded && !hasEndCard && legacyCallToActionView != null) {
+            legacyCallToActionView.setVisibility(View.GONE);
+            daroChromeView.setCallToActionVisible(true);
+            keepDaroChromeOnTop();
+        }
+    }
+
+    private void applyDaroChromeInsets() {
+        if (daroChromeView == null) {
+            return;
+        }
+
+        Context context = daroChromeView.getContext();
+        CustomInsets navigationInsets = InsetsUtils.getNavigationInsets(context);
+        CustomInsets cutoutInsets = InsetsUtils.getCutoutInsets(context);
+        daroChromeView.setSafeAreaInsets(
+            navigationInsets.getTop() + cutoutInsets.getTop(),
+            navigationInsets.getRight() + cutoutInsets.getRight(),
+            navigationInsets.getBottom() + cutoutInsets.getBottom(),
+            navigationInsets.getLeft() + cutoutInsets.getLeft()
+        );
+        keepDaroChromeOnTop();
+    }
+
+    private void updateDaroSkipCountdown(int roundedSeconds) {
+        if (daroChromeView != null) {
+            daroChromeView.showSkipCountdown(roundedSeconds);
+            keepDaroChromeOnTop();
+        }
+    }
+
+    private void updateDaroProgress(
+        long durationInMillis,
+        long millisUntilFinished
+    ) {
+        if (daroChromeView == null || durationInMillis <= 0) {
+            return;
+        }
+
+        float progress = (durationInMillis - millisUntilFinished) / (float) durationInMillis;
+        daroChromeView.setProgressFraction(progress);
+        keepDaroChromeOnTop();
+    }
+
+    private void keepDaroChromeOnTop() {
+        if (daroChromeView == null) {
+            return;
+        }
+
+        daroChromeView.bringToFront();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            daroChromeView.setElevation(1000f);
+            daroChromeView.setTranslationZ(1000f);
+        }
+    }
+
+    private void updateRemainingCloseDelay() {
+        if (closeButtonDelayInMs < 0 || closeButtonTimerStartedAtMs < 0) {
+            return;
+        }
+
+        long elapsedMs = System.currentTimeMillis() - closeButtonTimerStartedAtMs;
+        remainingCloseDelayInMs = (int) Math.max(0, closeButtonDelayInMs - elapsedMs);
+        closeButtonDelayInMs = -1;
+        closeButtonTimerStartedAtMs = -1;
     }
 
 }

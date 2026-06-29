@@ -51,6 +51,7 @@ import java.util.List;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 import static org.prebid.mobile.rendering.video.VideoAdEvent.Event.AD_IMPRESSION;
@@ -98,6 +99,26 @@ public class CreativeModelsMakerVastTest {
 
         CreativeModelsMaker.Result result = argumentCaptor.getValue();
         assertVastInline(result.creativeModels, false);
+    }
+
+    @Test
+    public void buildDaroStaticEndCardHtml_UsesDaroEndCardLayoutAndCtaClickTarget() {
+        String html = CreativeModelsMakerVast.buildDaroStaticEndCardHtml(
+            "https://example.com/install?x=1&y=2",
+            "https://cdn.example.com/icon.png",
+            "Skyline <Pro>",
+            "Focus & Productivity"
+        );
+
+        MatcherAssert.assertThat(html, containsString("background:#27272a"));
+        MatcherAssert.assertThat(html, containsString("width:96px;height:96px"));
+        MatcherAssert.assertThat(html, containsString("height:60px"));
+        MatcherAssert.assertThat(html, containsString("background:#3b82f6"));
+        MatcherAssert.assertThat(html, containsString("<a class=\"daro-cta\" href=\"https://example.com/install?x=1&amp;y=2\">"));
+        MatcherAssert.assertThat(html, containsString("<img class=\"daro-icon\" alt=\"\" src=\"https://cdn.example.com/icon.png\">"));
+        MatcherAssert.assertThat(html, containsString("Skyline &lt;Pro&gt;"));
+        MatcherAssert.assertThat(html, containsString("Focus &amp; Productivity"));
+        assertFalse(html.contains("<a href=\"https://example.com/install?x=1&amp;y=2\"><img"));
     }
 
     // To test wrappers, we use a mock server to handle the vast wrapper redirect

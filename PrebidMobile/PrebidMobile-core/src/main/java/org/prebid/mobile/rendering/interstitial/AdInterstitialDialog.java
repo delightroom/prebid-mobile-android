@@ -17,6 +17,7 @@
 package org.prebid.mobile.rendering.interstitial;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.app.Fragment;
 import android.app.FragmentManager;
 import android.content.Context;
@@ -31,10 +32,14 @@ import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import org.prebid.mobile.LogUtil;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
+import org.prebid.mobile.rendering.models.InterstitialDisplayPropertiesInternal;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardManager;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardedClosingRules;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardedCompletionRules;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardedExt;
+import org.prebid.mobile.rendering.utils.helpers.CustomInsets;
+import org.prebid.mobile.rendering.utils.helpers.InsetsUtils;
+import org.prebid.mobile.rendering.views.interstitial.DaroFullscreenChromeView;
 import org.prebid.mobile.rendering.views.interstitial.InterstitialManager;
 import org.prebid.mobile.rendering.views.webview.WebViewBase;
 import org.prebid.mobile.rendering.views.webview.mraid.JSInterface;
@@ -51,6 +56,8 @@ public class AdInterstitialDialog extends AdBaseDialog {
     private RewardedCustomTimer timer;
     @Nullable
     private FragmentManager.FragmentLifecycleCallbacks lifecycleListener;
+    @Nullable
+    private DaroFullscreenChromeView daroEndCardChromeView;
 
     /**
      * @param context                  activity context.
@@ -103,9 +110,43 @@ public class AdInterstitialDialog extends AdBaseDialog {
         );
     }
 
+    @Override
+    public void changeCloseViewVisibility(int visibility) {
+        super.changeCloseViewVisibility(visibility);
+        if (daroEndCardChromeView != null) {
+            daroEndCardChromeView.setCloseButtonVisible(visibility == View.VISIBLE);
+            keepDaroEndCardChromeOnTop();
+        }
+    }
+
+    @Override
+    protected void addCloseView() {
+        if (!shouldUseDaroEndCardChrome()) {
+            super.addCloseView();
+            return;
+        }
+
+        ensureDaroEndCardChromeView();
+        if (daroEndCardChromeView == null) {
+            super.addCloseView();
+            return;
+        }
+
+        View closeButton = daroEndCardChromeView.getCloseButton();
+        setCloseView(closeButton);
+        changeCloseViewVisibility(View.VISIBLE);
+        closeButton.setOnClickListener(v -> handleCloseClick());
+        keepDaroEndCardChromeOnTop();
+    }
+
     public void nullifyDialog() {
         cancel();
         cleanup();
+    }
+
+    @Override
+    public void cleanup() {
+        super.cleanup();
     }
 
 
@@ -135,7 +176,10 @@ public class AdInterstitialDialog extends AdBaseDialog {
 
             if (hasRewardEventUrl) {
                 scheduleRewardListener(defaultRewardTime, 0, autoClose);
-                rewardManager.setAfterRewardListener(() -> scheduleCloseButtonDisplaying(postRewardTime, autoClose));
+                rewardManager.setAfterRewardListener(() -> {
+                    cancelRewardedTimer();
+                    scheduleCloseButtonDisplaying(postRewardTime, autoClose);
+                });
                 return;
             }
 
@@ -197,9 +241,7 @@ public class AdInterstitialDialog extends AdBaseDialog {
             fragmentManager.unregisterFragmentLifecycleCallbacks(lifecycleListener);
         }
 
-        if (timer != null) {
-            timer = null;
-        }
+        cancelRewardedTimer();
     }
 
     private FragmentManager.FragmentLifecycleCallbacks createLifecycleListener() {
@@ -223,6 +265,75 @@ public class AdInterstitialDialog extends AdBaseDialog {
                 }
             }
         };
+    }
+
+    private boolean shouldUseDaroEndCardChrome() {
+        if (interstitialManager == null || interstitialManager.getInterstitialDisplayProperties() == null) {
+            return false;
+        }
+
+        InterstitialDisplayPropertiesInternal properties = interstitialManager.getInterstitialDisplayProperties();
+        return properties.config != null && properties.config.getHasEndCard();
+    }
+
+    private void ensureDaroEndCardChromeView() {
+        if (daroEndCardChromeView != null || adViewContainer == null) {
+            return;
+        }
+
+        daroEndCardChromeView = createDaroEndCardChromeView();
+        daroEndCardChromeView.showEndCardLayout();
+        applyDaroChromeInsets();
+        Views.removeFromParent(daroEndCardChromeView);
+        adViewContainer.addView(
+            daroEndCardChromeView,
+            new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        );
+        daroEndCardChromeView.post(this::applyDaroChromeInsets);
+    }
+
+    @VisibleForTesting
+    protected DaroFullscreenChromeView createDaroEndCardChromeView() {
+        return new DaroFullscreenChromeView(getContext());
+    }
+
+    private void applyDaroChromeInsets() {
+        if (daroEndCardChromeView == null) {
+            return;
+        }
+
+        Activity activity = getActivity();
+        Context context = activity != null ? activity : getContext();
+        CustomInsets navigationInsets = InsetsUtils.getNavigationInsets(context);
+        CustomInsets cutoutInsets = InsetsUtils.getCutoutInsets(context);
+        daroEndCardChromeView.setSafeAreaInsets(
+            navigationInsets.getTop() + cutoutInsets.getTop(),
+            navigationInsets.getRight() + cutoutInsets.getRight(),
+            navigationInsets.getBottom() + cutoutInsets.getBottom(),
+            navigationInsets.getLeft() + cutoutInsets.getLeft()
+        );
+    }
+
+    private void keepDaroEndCardChromeOnTop() {
+        if (daroEndCardChromeView == null) {
+            return;
+        }
+
+        daroEndCardChromeView.bringToFront();
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            daroEndCardChromeView.setElevation(1000f);
+            daroEndCardChromeView.setTranslationZ(1000f);
+        }
+    }
+
+    private void cancelRewardedTimer() {
+        if (timer != null) {
+            timer.cancel();
+            timer = null;
+        }
     }
 
     private static class RewardedCustomTimer extends CountDownTimer {

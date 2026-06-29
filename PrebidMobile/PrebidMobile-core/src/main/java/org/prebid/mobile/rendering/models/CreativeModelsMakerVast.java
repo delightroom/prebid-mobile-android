@@ -17,6 +17,7 @@
 package org.prebid.mobile.rendering.models;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.VisibleForTesting;
 import org.prebid.mobile.LogUtil;
 import org.prebid.mobile.api.data.AdFormat;
 import org.prebid.mobile.api.exceptions.AdException;
@@ -169,11 +170,13 @@ public class CreativeModelsMakerVast extends CreativeModelsMaker {
             endCardModel.setName(HTML_CREATIVE_TAG);
             endCardModel.setHasEndCard(true);
 
+            InLine inline = latestVastWrapperParser.getVast()
+                                                   .getAds()
+                                                   .get(0)
+                                                   .getInline();
+
             // Create CompanionAd object
-            Companion companionAd = AdResponseParserVast.getCompanionAd(latestVastWrapperParser.getVast()
-                                                                                               .getAds()
-                                                                                               .get(0)
-                                                                                               .getInline());
+            Companion companionAd = AdResponseParserVast.getCompanionAd(inline);
             if (companionAd != null) {
                 switch (AdResponseParserVast.getCompanionResourceFormat(companionAd)) {
                     case RESOURCE_FORMAT_HTML:
@@ -183,18 +186,17 @@ public class CreativeModelsMakerVast extends CreativeModelsMaker {
                         endCardModel.setHtml(companionAd.getIFrameResource().getValue());
                         break;
                     case RESOURCE_FORMAT_STATIC:
-                        endCardModel.setHtml(String.format("<div id=\"ad\" align=\"center\">\n"
-                                                           + "<a href=\"%s\">\n"
-                                                           + "<img src=\"%s\"></a>\n"
-                                                           + "</div>",
-                                                           companionAd.getCompanionClickThrough().getValue(),
-                                                           companionAd.getStaticResource().getValue()));
+                        String clickThroughUrl = getCompanionClickThroughUrl(companionAd, vastClickThroughUrl);
+                        endCardModel.setHtml(buildDaroStaticEndCardHtml(
+                            clickThroughUrl,
+                            companionAd.getStaticResource().getValue(),
+                            getAdTitle(inline),
+                            getAdSubtitle(inline)
+                        ));
                         break;
                 }
 
-                if (companionAd.getCompanionClickThrough() != null) {
-                    endCardModel.setClickUrl(companionAd.getCompanionClickThrough().getValue());
-                }
+                endCardModel.setClickUrl(getCompanionClickThroughUrl(companionAd, vastClickThroughUrl));
 
                 if (companionAd.getCompanionClickTracking() != null) {
                     String clickTrackingUrl = companionAd.getCompanionClickTracking().getValue();
@@ -251,6 +253,99 @@ public class CreativeModelsMakerVast extends CreativeModelsMaker {
                 throw new VastParseError("Video duration can't be more then ad unit max video duration: " + maxDuration + " (current duration: " + currentDuration + ")");
             }
         }
+    }
+
+    private static String getCompanionClickThroughUrl(
+        Companion companionAd,
+        String vastClickThroughUrl
+    ) {
+        if (companionAd.getCompanionClickThrough() != null
+            && Utils.isNotBlank(companionAd.getCompanionClickThrough().getValue())
+        ) {
+            return companionAd.getCompanionClickThrough().getValue();
+        }
+        return vastClickThroughUrl;
+    }
+
+    private static String getAdTitle(InLine inline) {
+        if (inline.getAdTitle() != null && Utils.isNotBlank(inline.getAdTitle().getValue())) {
+            return inline.getAdTitle().getValue();
+        }
+        return "Sponsored Ad";
+    }
+
+    private static String getAdSubtitle(InLine inline) {
+        if (inline.getDescription() != null && Utils.isNotBlank(inline.getDescription().getValue())) {
+            return inline.getDescription().getValue();
+        }
+        if (inline.getAdvertiser() != null && Utils.isNotBlank(inline.getAdvertiser().getValue())) {
+            return inline.getAdvertiser().getValue();
+        }
+        return "Tap to learn more";
+    }
+
+    @VisibleForTesting
+    static String buildDaroStaticEndCardHtml(
+        String clickThroughUrl,
+        String imageUrl,
+        String title,
+        String subtitle
+    ) {
+        String safeClickUrl = escapeHtmlAttribute(clickThroughUrl);
+        String safeImageUrl = escapeHtmlAttribute(imageUrl);
+        String safeTitle = escapeHtml(title);
+        String safeSubtitle = escapeHtml(subtitle);
+
+        return "<!doctype html>"
+               + "<html>"
+               + "<head>"
+               + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">"
+               + "<style>"
+               + "html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#27272a;}"
+               + "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#fafafa;}"
+               + ".daro-end-card{position:fixed;inset:0;background:#27272a;}"
+               + ".daro-center{position:absolute;left:20px;right:20px;top:50%;transform:translateY(-50%);"
+               + "box-sizing:border-box;padding:0 12px;text-align:center;}"
+               + ".daro-icon-wrap{padding-bottom:24px;}"
+               + ".daro-icon{width:96px;height:96px;border-radius:16px;object-fit:cover;display:block;margin:0 auto;}"
+               + ".daro-title{margin:0 0 8px;font-size:36px;line-height:1;font-weight:700;letter-spacing:0;color:#fafafa;}"
+               + ".daro-subtitle{margin:0 0 16px;font-size:16px;line-height:28px;font-weight:400;color:#9ca3af;}"
+               + ".daro-cta{height:60px;width:100%;box-sizing:border-box;border-radius:16px;background:#3b82f6;"
+               + "color:#fff;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:4px;"
+               + "font-size:18px;line-height:28px;font-weight:600;-webkit-tap-highlight-color:transparent;}"
+               + ".daro-cta svg{width:16px;height:16px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}"
+               + "</style>"
+               + "</head>"
+               + "<body>"
+               + "<main class=\"daro-end-card\">"
+               + "<section class=\"daro-center\">"
+               + "<div class=\"daro-icon-wrap\"><img class=\"daro-icon\" alt=\"\" src=\"" + safeImageUrl + "\"></div>"
+               + "<h1 class=\"daro-title\">" + safeTitle + "</h1>"
+               + "<p class=\"daro-subtitle\">" + safeSubtitle + "</p>"
+               + "<a class=\"daro-cta\" href=\"" + safeClickUrl + "\">"
+               + "<span>Install Now</span>"
+               + "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\">"
+               + "<path d=\"M7 7h10v10\"></path><path d=\"M7 17 17 7\"></path><path d=\"M7 7v10h10\"></path>"
+               + "</svg>"
+               + "</a>"
+               + "</section>"
+               + "</main>"
+               + "</body>"
+               + "</html>";
+    }
+
+    private static String escapeHtml(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;");
+    }
+
+    private static String escapeHtmlAttribute(String value) {
+        return escapeHtml(value).replace("\"", "&quot;")
+                                .replace("'", "&#39;");
     }
 
 }

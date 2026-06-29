@@ -17,6 +17,7 @@
 package org.prebid.mobile.rendering.utils.exposure;
 
 import android.app.Activity;
+import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
 import android.view.View;
@@ -26,6 +27,7 @@ import androidx.test.filters.LargeTest;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.prebid.mobile.rendering.views.interstitial.DaroFullscreenChromeView;
 import org.prebid.mobile.rendering.views.webview.mraid.Views;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
@@ -411,6 +413,51 @@ public class ViewExposureCheckerTest {
         child.setForeground(foreground);
         child.setBackground(background);
         assertFalse(viewExposureChecker.shouldCollectObstruction(child));
+    }
+
+    @Test
+    public void whenDaroFullscreenChromeOverlaysAdView_DoesNotObstruct() {
+        FrameLayout parent = new FrameLayout(activity);
+        View adView = new View(activity);
+        DaroFullscreenChromeView chromeView = new DaroFullscreenChromeView(activity);
+
+        container.addView(parent);
+        parent.addView(adView);
+        parent.addView(chromeView);
+
+        parent.layout(0, 0, 390, 844);
+        adView.layout(0, 0, 390, 844);
+        chromeView.layout(0, 0, 390, 844);
+
+        assertEquals(new ViewExposure(1, new Rect(0, 0, adView.getWidth(), adView.getHeight()), Collections.emptyList()),
+                     getViewExposure(adView));
+    }
+
+    @Test
+    public void whenDaroChromeContainsNonFriendlyChild_DetectsObstruction() {
+        FrameLayout parent = new FrameLayout(activity);
+        View adView = new View(activity);
+        DaroFullscreenChromeView chromeView = new DaroFullscreenChromeView(activity);
+        View obstruction = new View(activity);
+        obstruction.setBackgroundColor(Color.BLACK);
+
+        container.addView(parent);
+        parent.addView(adView);
+        parent.addView(chromeView);
+        chromeView.addView(obstruction);
+
+        parent.layout(0, 0, 390, 844);
+        adView.layout(0, 0, 390, 844);
+        chromeView.layout(0, 0, 390, 844);
+        obstruction.layout(10, 10, 110, 110);
+
+        float exposed = 1 - (100 * 100f) / (adView.getWidth() * adView.getHeight());
+        assertEquals(new ViewExposure(
+                         exposed,
+                         new Rect(0, 0, adView.getWidth(), adView.getHeight()),
+                         Collections.singletonList(new Rect(10, 10, 110, 110))
+                     ),
+                     getViewExposure(adView));
     }
 
     private ViewExposure getViewExposure(View view) {
