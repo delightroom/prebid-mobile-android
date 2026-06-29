@@ -263,11 +263,10 @@ public class InterstitialVideo extends AdBaseDialog {
     }
 
     public void close() {
-        if (interstitialManager.handleVideoInterstitialClose()) {
+        if (interstitialManager.handleVideoInterstitialClose(this::hide)) {
             stopTimer();
             stopSkipCountDownTimer();
             stopCountDownTimer();
-            hide();
             return;
         }
 

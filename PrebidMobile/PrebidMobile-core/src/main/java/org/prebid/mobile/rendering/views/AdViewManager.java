@@ -28,6 +28,7 @@ import org.prebid.mobile.api.rendering.InterstitialView;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
 import org.prebid.mobile.core.R;
 import org.prebid.mobile.rendering.bidding.data.bid.BidResponse;
+import org.prebid.mobile.rendering.interstitial.DialogEventListener;
 import org.prebid.mobile.rendering.listeners.CreativeImpressionListener;
 import org.prebid.mobile.rendering.listeners.CreativeViewListener;
 import org.prebid.mobile.rendering.loading.CreativeFactory;
@@ -72,8 +73,8 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
         }
 
         @Override
-        public boolean handleVideoInterstitialClose() {
-            return handleDaroRewardedVideoClose();
+        public boolean handleVideoInterstitialClose(Runnable onEndCardShown) {
+            return handleDaroFullscreenVideoClose(onEndCardShown);
         }
     };
 
@@ -411,6 +412,12 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
             return;
         }
 
+        if (shouldUseDaroEndCardHandoff()) {
+            displayNextEndCardCreative(this::hideInterstitialVideo);
+            adViewListener.videoCreativePlaybackFinished();
+            return;
+        }
+
         closeInterstitial();
 
         if (transactionManager.hasNextCreative() && adView != null) {
@@ -430,22 +437,26 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
     }
 
     private boolean shouldSuppressDaroRewardedAutoEndCard() {
+        return shouldUseDaroEndCardHandoff()
+                && adConfiguration.isRewarded();
+    }
+
+    private boolean shouldUseDaroEndCardHandoff() {
         return adConfiguration != null
                 && adConfiguration.isDaroFullscreenRenderer()
-                && adConfiguration.isRewarded()
                 && transactionManager.hasNextCreative();
     }
 
-    private boolean handleDaroRewardedVideoClose() {
-        if (!shouldSuppressDaroRewardedAutoEndCard()) {
+    private boolean handleDaroFullscreenVideoClose(Runnable onEndCardShown) {
+        if (!shouldUseDaroEndCardHandoff()) {
             return false;
         }
 
-        displayNextEndCardCreative();
+        displayNextEndCardCreative(onEndCardShown);
         return true;
     }
 
-    private void displayNextEndCardCreative() {
+    private void displayNextEndCardCreative(Runnable onEndCardShown) {
         Transaction transaction = transactionManager.getCurrentTransaction();
         if (transaction == null || adView == null) {
             return;
@@ -460,7 +471,11 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
 
         HTMLCreative endCardCreative = (HTMLCreative) transaction.getCreativeFactories().get(1).getCreative();
         interstitialManager.setInterstitialDisplayDelegate(endCardCreative);
-        interstitialManager.displayAdViewInInterstitial(contextReference.get(), adView);
+        interstitialManager.displayAdViewInInterstitial(contextReference.get(), adView, eventType -> {
+            if (eventType == DialogEventListener.EventType.SHOWN && onEndCardShown != null) {
+                onEndCardShown.run();
+            }
+        });
     }
 
     private void handleCreativeDisplay() {
@@ -507,6 +522,12 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
     private void closeInterstitial() {
         if (adView instanceof InterstitialView) {
             ((InterstitialView) adView).closeInterstitialVideo();
+        }
+    }
+
+    private void hideInterstitialVideo() {
+        if (adView instanceof InterstitialView) {
+            ((InterstitialView) adView).hideInterstitialVideo();
         }
     }
 
@@ -570,7 +591,7 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
     public interface AdViewManagerInterstitialDelegate {
         void showInterstitial();
 
-        default boolean handleVideoInterstitialClose() {
+        default boolean handleVideoInterstitialClose(Runnable onEndCardShown) {
             return false;
         }
     }

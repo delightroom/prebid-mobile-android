@@ -22,6 +22,7 @@ import android.os.Handler;
 import android.widget.FrameLayout;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -220,12 +221,28 @@ public class InterstitialVideoTest {
 
     @Test
     public void close_WhenManagerHandlesVideoClose_DoesNotNotifyInterstitialClosed() {
-        when(mockInterstitialManager.handleVideoInterstitialClose()).thenReturn(true);
+        when(mockInterstitialManager.handleVideoInterstitialClose(any(Runnable.class))).thenReturn(true);
 
         spyInterstitialVideo.close();
 
-        verify(mockInterstitialManager).handleVideoInterstitialClose();
+        verify(mockInterstitialManager).handleVideoInterstitialClose(any(Runnable.class));
         verify(mockInterstitialManager, never()).interstitialAdClosed();
+    }
+
+    @Test
+    public void close_WhenManagerHandlesVideoClose_HidesAfterEndCardShown() {
+        ArgumentCaptor<Runnable> onEndCardShownCaptor = ArgumentCaptor.forClass(Runnable.class);
+        when(mockInterstitialManager.handleVideoInterstitialClose(any(Runnable.class))).thenReturn(true);
+        doNothing().when(spyInterstitialVideo).hide();
+
+        spyInterstitialVideo.close();
+
+        verify(spyInterstitialVideo, never()).hide();
+        verify(mockInterstitialManager).handleVideoInterstitialClose(onEndCardShownCaptor.capture());
+
+        onEndCardShownCaptor.getValue().run();
+
+        verify(spyInterstitialVideo).hide();
     }
 
     @Test

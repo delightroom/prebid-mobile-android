@@ -97,6 +97,10 @@ public class InterstitialManager implements InterstitialManagerInterface {
 
     // Note: The context should be the Activity this view will display on top of
     public void displayAdViewInInterstitial(Context context, View view) {
+        displayAdViewInInterstitial(context, view, null);
+    }
+
+    public void displayAdViewInInterstitial(Context context, View view, DialogEventListener dialogEventListener) {
         if (!(context instanceof Activity)) {
             LogUtil.error(TAG, "displayAdViewInInterstitial(): Can not display interstitial without activity context");
             return;
@@ -106,7 +110,7 @@ public class InterstitialManager implements InterstitialManagerInterface {
             // TODO: 13.08.2020 Remove casts to specific view
             InterstitialView interstitialView = ((InterstitialView) view);
             show();
-            showInterstitialDialog(context, interstitialView);
+            showInterstitialDialog(context, interstitialView, dialogEventListener);
         }
     }
 
@@ -145,9 +149,9 @@ public class InterstitialManager implements InterstitialManagerInterface {
         }
     }
 
-    public boolean handleVideoInterstitialClose() {
+    public boolean handleVideoInterstitialClose(Runnable onEndCardShown) {
         return adViewManagerInterstitialDelegate != null
-                && adViewManagerInterstitialDelegate.handleVideoInterstitialClose();
+                && adViewManagerInterstitialDelegate.handleVideoInterstitialClose(onEndCardShown);
     }
 
     @Override
@@ -194,10 +198,17 @@ public class InterstitialManager implements InterstitialManagerInterface {
         interstitialDisplayDelegate.interstitialDialogShown(rootViewGroup);
     }
 
-    private void showInterstitialDialog(Context context, InterstitialView interstitialView) {
+    private void showInterstitialDialog(
+            Context context,
+            InterstitialView interstitialView,
+            DialogEventListener dialogEventListener
+    ) {
         WebViewBase webViewBase = ((PrebidWebViewInterstitial) interstitialView.getCreativeView()).getWebView();
         webViewBase.setId(INTERSTITIAL_WEBVIEW_ID);
         interstitialDialog = new AdInterstitialDialog(context, webViewBase, interstitialView, this);
+        if (dialogEventListener != null) {
+            interstitialDialog.setDialogListener(dialogEventListener);
+        }
         interstitialDialog.show();
     }
 

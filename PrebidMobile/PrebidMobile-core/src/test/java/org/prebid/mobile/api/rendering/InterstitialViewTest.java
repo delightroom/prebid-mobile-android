@@ -122,6 +122,19 @@ public class InterstitialViewTest {
         assertEquals(chromeView.getAdChoiceButton(), obstructions[8].getView());
     }
 
+    @Test
+    public void hideInterstitialVideo_HidesShowingVideoWithoutClose() throws IllegalAccessException {
+        InterstitialVideo interstitialVideo = mock(InterstitialVideo.class);
+        when(interstitialVideo.isShowing()).thenReturn(true);
+        WhiteBox.field(InterstitialView.class, "interstitialVideo").set(spyBidInterstitialView, interstitialVideo);
+
+        spyBidInterstitialView.hideInterstitialVideo();
+
+        verify(interstitialVideo).hide();
+        verify(interstitialVideo, never()).close();
+        assertEquals(null, WhiteBox.field(InterstitialView.class, "interstitialVideo").get(spyBidInterstitialView));
+    }
+
     private void addChildView(int id) {
         View view = new View(context);
         view.setId(id);

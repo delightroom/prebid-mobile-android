@@ -39,6 +39,7 @@ import org.prebid.mobile.rendering.models.AbstractCreative;
 import org.prebid.mobile.rendering.models.AdDetails;
 import org.prebid.mobile.rendering.models.CreativeModelsMaker;
 import org.prebid.mobile.rendering.models.HTMLCreative;
+import org.prebid.mobile.rendering.interstitial.DialogEventListener;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardManager;
 import org.prebid.mobile.rendering.models.internal.InternalPlayerState;
 import org.prebid.mobile.rendering.networking.tracking.TrackingManager;
@@ -271,6 +272,34 @@ public class AdViewManagerTest {
     }
 
     @Test
+    public void creativeDidComplete_DaroInterstitialWithEndCard_AdvancesAfterEndCardShown() throws Exception {
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setDaroFullscreenRenderer(true);
+        configuration.setRewarded(false);
+        mockVideoCreativeWithConfiguration(configuration);
+
+        TransactionManager mockTransactionManager = mockTransactionWithEndCard();
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, mockTransactionManager);
+        WhiteBox.field(AdViewManager.class, "adConfiguration").set(adViewManager, configuration);
+        WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, mockAdView);
+
+        adViewManager.creativeDidComplete(mockVideoCreative);
+
+        verify(mockAdView, never()).closeInterstitialVideo();
+        verify(mockVideoCreative).destroy();
+        verify(mockTransactionManager).incrementCreativesCounter();
+        verify(mockInterstitialManager).setInterstitialDisplayDelegate(any());
+        ArgumentCaptor<DialogEventListener> listenerCaptor = ArgumentCaptor.forClass(DialogEventListener.class);
+        verify(mockInterstitialManager).displayAdViewInInterstitial(any(), eq(mockAdView), listenerCaptor.capture());
+        verify(mockAdView, never()).hideInterstitialVideo();
+
+        listenerCaptor.getValue().onEvent(DialogEventListener.EventType.SHOWN);
+
+        verify(mockAdView).hideInterstitialVideo();
+        verify(mockAdViewListener).videoCreativePlaybackFinished();
+    }
+
+    @Test
     public void videoInterstitialClose_DaroRewardedAfterReward_AdvancesToEndCard() throws Exception {
         AdViewManager.AdViewManagerInterstitialDelegate delegate = captureInterstitialDelegate();
 
@@ -287,14 +316,23 @@ public class AdViewManagerTest {
         WhiteBox.field(AdViewManager.class, "adConfiguration").set(adViewManager, configuration);
         WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, mockAdView);
         clearInvocations(mockInterstitialManager);
+        Runnable onEndCardShown = mock(Runnable.class);
 
-        boolean handled = delegate.handleVideoInterstitialClose();
+        boolean handled = delegate.handleVideoInterstitialClose(onEndCardShown);
 
         assertTrue(handled);
         verify(mockVideoCreative).destroy();
         verify(mockTransactionManager).incrementCreativesCounter();
         verify(mockInterstitialManager).setInterstitialDisplayDelegate(any());
-        verify(mockInterstitialManager).displayAdViewInInterstitial(any(), eq(mockAdView));
+        ArgumentCaptor<DialogEventListener> listenerCaptor = ArgumentCaptor.forClass(DialogEventListener.class);
+        verify(mockInterstitialManager).displayAdViewInInterstitial(any(), eq(mockAdView), listenerCaptor.capture());
+        verify(onEndCardShown, never()).run();
+
+        listenerCaptor.getValue().onEvent(DialogEventListener.EventType.MUTE);
+        verify(onEndCardShown, never()).run();
+
+        listenerCaptor.getValue().onEvent(DialogEventListener.EventType.SHOWN);
+        verify(onEndCardShown).run();
     }
 
     @Test
@@ -315,16 +353,51 @@ public class AdViewManagerTest {
         WhiteBox.field(AdViewManager.class, "adConfiguration").set(adViewManager, configuration);
         WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, mockAdView);
         clearInvocations(mockInterstitialManager);
+        Runnable onEndCardShown = mock(Runnable.class);
 
-        boolean handled = delegate.handleVideoInterstitialClose();
+        boolean handled = delegate.handleVideoInterstitialClose(onEndCardShown);
 
         assertTrue(handled);
         verify(mockVideoCreative).destroy();
         verify(mockTransactionManager).incrementCreativesCounter();
         verify(mockInterstitialManager).setInterstitialDisplayDelegate(any());
-        verify(mockInterstitialManager).displayAdViewInInterstitial(any(), eq(mockAdView));
+        ArgumentCaptor<DialogEventListener> listenerCaptor = ArgumentCaptor.forClass(DialogEventListener.class);
+        verify(mockInterstitialManager).displayAdViewInInterstitial(any(), eq(mockAdView), listenerCaptor.capture());
+        listenerCaptor.getValue().onEvent(DialogEventListener.EventType.SHOWN);
+        verify(onEndCardShown).run();
         verify(rewardListener, never()).run();
         assertFalse(rewardManager.getUserRewardedAlready());
+    }
+
+    @Test
+    public void videoInterstitialClose_DaroInterstitial_AdvancesToEndCardAfterShown() throws Exception {
+        AdViewManager.AdViewManagerInterstitialDelegate delegate = captureInterstitialDelegate();
+
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setDaroFullscreenRenderer(true);
+        configuration.setRewarded(false);
+        mockVideoCreativeWithConfiguration(configuration);
+
+        TransactionManager mockTransactionManager = mockTransactionWithEndCard();
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, mockTransactionManager);
+        WhiteBox.field(AdViewManager.class, "adConfiguration").set(adViewManager, configuration);
+        WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, mockAdView);
+        clearInvocations(mockInterstitialManager);
+        Runnable onEndCardShown = mock(Runnable.class);
+
+        boolean handled = delegate.handleVideoInterstitialClose(onEndCardShown);
+
+        assertTrue(handled);
+        verify(mockVideoCreative).destroy();
+        verify(mockTransactionManager).incrementCreativesCounter();
+        verify(mockInterstitialManager).setInterstitialDisplayDelegate(any());
+        ArgumentCaptor<DialogEventListener> listenerCaptor = ArgumentCaptor.forClass(DialogEventListener.class);
+        verify(mockInterstitialManager).displayAdViewInInterstitial(any(), eq(mockAdView), listenerCaptor.capture());
+        verify(onEndCardShown, never()).run();
+
+        listenerCaptor.getValue().onEvent(DialogEventListener.EventType.SHOWN);
+
+        verify(onEndCardShown).run();
     }
 
     @Test

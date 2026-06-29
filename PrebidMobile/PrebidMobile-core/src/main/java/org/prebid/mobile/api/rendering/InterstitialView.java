@@ -288,6 +288,15 @@ public class InterstitialView extends BaseAdView {
         }
     }
 
+    public void hideInterstitialVideo() {
+        if (interstitialVideo != null) {
+            if (interstitialVideo.isShowing()) {
+                interstitialVideo.hide();
+            }
+            interstitialVideo = null;
+        }
+    }
+
     @Override
     protected void init() throws AdException {
         try {

@@ -94,12 +94,13 @@ public class InterstitialManagerTest {
 
     @Test
     public void handleVideoInterstitialClose_DelegatesToAdViewManager() {
-        when(mockAdViewDelegate.handleVideoInterstitialClose()).thenReturn(true);
+        Runnable onEndCardShown = mock(Runnable.class);
+        when(mockAdViewDelegate.handleVideoInterstitialClose(onEndCardShown)).thenReturn(true);
 
-        boolean handled = spyInterstitialManager.handleVideoInterstitialClose();
+        boolean handled = spyInterstitialManager.handleVideoInterstitialClose(onEndCardShown);
 
         assertEquals(true, handled);
-        verify(mockAdViewDelegate).handleVideoInterstitialClose();
+        verify(mockAdViewDelegate).handleVideoInterstitialClose(onEndCardShown);
     }
 
     @Test
