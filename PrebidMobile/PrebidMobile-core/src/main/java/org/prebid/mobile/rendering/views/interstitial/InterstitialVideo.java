@@ -803,7 +803,8 @@ public class InterstitialVideo extends AdBaseDialog {
 
         boolean showCallToAction = false;
         if (legacyCallToActionView != null) {
-            showCallToAction = !isRewarded && legacyCallToActionView.getVisibility() == View.VISIBLE;
+            showCallToAction = legacyCallToActionView.getVisibility() == View.VISIBLE
+                               || (isDaroFullscreenRenderer() && isRewarded);
             legacyCallToActionView.setVisibility(View.GONE);
             legacyCallToActionView.setId(View.NO_ID);
             daroChromeView.getCallToActionButton().setOnClickListener(v -> legacyCallToActionView.performClick());
@@ -812,7 +813,7 @@ public class InterstitialVideo extends AdBaseDialog {
     }
 
     private void showDaroCallToActionForReward() {
-        if (daroChromeView != null && isRewarded && !hasEndCard && legacyCallToActionView != null) {
+        if (daroChromeView != null && isRewarded && legacyCallToActionView != null) {
             legacyCallToActionView.setVisibility(View.GONE);
             daroChromeView.setCallToActionVisible(true);
             keepDaroChromeOnTop();

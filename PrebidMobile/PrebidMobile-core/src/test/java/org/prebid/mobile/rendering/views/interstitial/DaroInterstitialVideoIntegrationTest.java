@@ -134,6 +134,31 @@ public class DaroInterstitialVideoIntegrationTest {
     }
 
     @Test
+    public void addFullscreenControls_DaroRewardedWithEndCardShowsLearnMore() {
+        when(adUnitConfiguration.isRewarded()).thenReturn(true);
+        when(adUnitConfiguration.isDaroFullscreenRenderer()).thenReturn(true);
+        interstitialVideo = new InterstitialVideo(activity, adViewContainer, interstitialManager, adUnitConfiguration);
+        interstitialVideo.setDialogListener(dialogEventListener);
+        interstitialVideo.setHasEndCard(true);
+
+        View legacyCallToAction = new View(activity);
+        legacyCallToAction.setId(R.id.tv_learn_more);
+        legacyCallToAction.setVisibility(View.GONE);
+        legacyCallToAction.setOnClickListener(v -> legacyCallToActionClicks++);
+        adViewContainer.addView(legacyCallToAction);
+
+        interstitialVideo.addCloseView();
+
+        DaroFullscreenChromeView chromeView = interstitialVideo.getDaroFullscreenChromeView();
+
+        assertNotNull(chromeView);
+        assertEquals(View.VISIBLE, chromeView.getCallToActionButton().getVisibility());
+        assertEquals("Learn More", chromeView.getCallToActionLabel().getText().toString());
+        assertTrue(chromeView.getCallToActionButton().performClick());
+        assertEquals(1, legacyCallToActionClicks);
+    }
+
+    @Test
     public void handleDialogShow_BindsDaroSoundEvenWhenPrebidSoundFlagIsDisabled() {
         InterstitialDisplayPropertiesInternal properties = new InterstitialDisplayPropertiesInternal();
         properties.isSoundButtonVisible = false;
