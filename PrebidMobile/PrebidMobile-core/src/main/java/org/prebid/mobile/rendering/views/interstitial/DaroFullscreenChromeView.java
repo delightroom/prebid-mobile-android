@@ -360,7 +360,7 @@ public class DaroFullscreenChromeView extends FrameLayout {
         LayoutParams adChoiceParams = new LayoutParams(dp(AD_CHOICE_SIZE_DP), dp(AD_CHOICE_SIZE_DP));
         adChoiceParams.gravity = Gravity.BOTTOM | Gravity.END;
         adChoiceParams.rightMargin = safeRightPx;
-        adChoiceParams.bottomMargin = footerBottomMargin;
+        adChoiceParams.bottomMargin = footerBottomMargin + dp((FOOTER_HEIGHT_DP - AD_CHOICE_SIZE_DP) / 2);
         adChoiceButton.setLayoutParams(adChoiceParams);
 
         LayoutParams rewardParams = new LayoutParams(dp(REWARD_TOAST_WIDTH_DP), dp(REWARD_TOAST_HEIGHT_DP));

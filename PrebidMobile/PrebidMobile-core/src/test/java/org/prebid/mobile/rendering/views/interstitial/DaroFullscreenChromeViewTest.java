@@ -79,6 +79,9 @@ public class DaroFullscreenChromeViewTest {
 
         FrameLayout.LayoutParams footerParams = (FrameLayout.LayoutParams) chromeView.getFooterBadge().getLayoutParams();
         assertEquals(dp(34), footerParams.bottomMargin);
+
+        FrameLayout.LayoutParams adChoiceParams = (FrameLayout.LayoutParams) chromeView.getAdChoiceButton().getLayoutParams();
+        assertEquals(dp(40), adChoiceParams.bottomMargin);
     }
 
     @Test
@@ -106,6 +109,7 @@ public class DaroFullscreenChromeViewTest {
 
         FrameLayout.LayoutParams adChoiceParams = (FrameLayout.LayoutParams) chromeView.getAdChoiceButton().getLayoutParams();
         assertEquals(dp(11), adChoiceParams.rightMargin);
+        assertEquals(dp(40), adChoiceParams.bottomMargin);
     }
 
     @Test
@@ -167,7 +171,7 @@ public class DaroFullscreenChromeViewTest {
         FrameLayout.LayoutParams footerParams = (FrameLayout.LayoutParams) chromeView.getFooterBadge().getLayoutParams();
         assertEquals(dp(34), footerParams.bottomMargin);
         FrameLayout.LayoutParams adChoiceParams = (FrameLayout.LayoutParams) chromeView.getAdChoiceButton().getLayoutParams();
-        assertEquals(dp(34), adChoiceParams.bottomMargin);
+        assertEquals(dp(40), adChoiceParams.bottomMargin);
     }
 
     @Test
