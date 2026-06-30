@@ -18,6 +18,8 @@ package org.prebid.mobile.rendering.video;
 
 import org.prebid.mobile.LogUtil;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
+import org.prebid.mobile.daro.DaroPrebidTrackingEvent;
+import org.prebid.mobile.daro.DaroPrebidTrackingObserver;
 import org.prebid.mobile.rendering.models.CreativeModel;
 import org.prebid.mobile.rendering.models.internal.InternalPlayerState;
 import org.prebid.mobile.rendering.networking.tracking.TrackingManager;
@@ -61,6 +63,7 @@ public class VideoCreativeModel extends CreativeModel {
     public void trackVideoEvent(VideoAdEvent.Event videoEvent) {
         omEventTracker.trackOmVideoAdEvent(videoEvent);
         ArrayList<String> urls = videoEventUrls.get(videoEvent);
+        notifyDaroTrackingObserver(videoEvent, urls);
         if (urls == null) {
             LogUtil.debug(TAG, "Event" + videoEvent + " not found");
             return;
@@ -69,6 +72,22 @@ public class VideoCreativeModel extends CreativeModel {
         trackingManager.fireEventTrackingURLs(urls);
 
         LogUtil.debug(TAG, "Video event '" + videoEvent.name() + "' was fired with urls: " + urls.toString());
+    }
+
+    private void notifyDaroTrackingObserver(
+            VideoAdEvent.Event videoEvent,
+            ArrayList<String> urls
+    ) {
+        AdUnitConfiguration configuration = getAdConfiguration();
+        if (configuration == null || configuration.getDaroTrackingObserver() == null) {
+            return;
+        }
+
+        DaroPrebidTrackingObserver observer = configuration.getDaroTrackingObserver();
+        observer.onTrackingEvent(DaroPrebidTrackingEvent.fromVideoEvent(
+                videoEvent,
+                urls != null ? urls.size() : 0
+        ));
     }
 
     public void trackPlayerStateChange(InternalPlayerState changedPlayerState) {

@@ -18,6 +18,8 @@ public interface DaroPrebidRenderListener {
 
     default void rewardEarned(@NonNull String type, int amount) {}
 
+    default void trackingEvent(@NonNull DaroPrebidTrackingEvent event) {}
+
     default void expired() {}
 
     default void closed() {}

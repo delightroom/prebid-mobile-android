@@ -19,6 +19,8 @@ package org.prebid.mobile.rendering.models;
 import androidx.annotation.Nullable;
 import org.prebid.mobile.LogUtil;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
+import org.prebid.mobile.daro.DaroPrebidTrackingEvent;
+import org.prebid.mobile.daro.DaroPrebidTrackingObserver;
 import org.prebid.mobile.rendering.networking.tracking.TrackingManager;
 import org.prebid.mobile.rendering.session.manager.OmAdSessionManager;
 import org.prebid.mobile.rendering.video.OmEventTracker;
@@ -114,6 +116,7 @@ public class CreativeModel {
 
     public void trackEventNamed(TrackingEvent.Events event) {
         ArrayList<String> trackingUrls = trackingURLs.get(event);
+        notifyDaroTrackingObserver(event, trackingUrls);
 
         if (trackingUrls == null || trackingUrls.isEmpty()) {
             LogUtil.debug(TAG, "Tracking URLs are empty for event: " + event);
@@ -131,6 +134,29 @@ public class CreativeModel {
             //for all requests(adrequest & recordEvents)
             trackingManager.fireEventTrackingURLs(trackingUrls);
         }
+    }
+
+    private void notifyDaroTrackingObserver(
+            TrackingEvent.Events event,
+            @Nullable ArrayList<String> urls
+    ) {
+        if (adConfiguration == null || adConfiguration.getDaroTrackingObserver() == null) {
+            return;
+        }
+
+        DaroPrebidTrackingObserver observer = adConfiguration.getDaroTrackingObserver();
+        String source = isEndCardCreative()
+                ? DaroPrebidTrackingEvent.SOURCE_COMPANION
+                : DaroPrebidTrackingEvent.SOURCE_DISPLAY;
+        observer.onTrackingEvent(DaroPrebidTrackingEvent.fromDisplayEvent(
+                event,
+                source,
+                urls != null ? urls.size() : 0
+        ));
+    }
+
+    private boolean isEndCardCreative() {
+        return hasEndCard && CreativeModelsMakerVast.HTML_CREATIVE_TAG.equals(name);
     }
 
     public void registerActiveOmAdSession(OmAdSessionManager omAdSessionManager) {

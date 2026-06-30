@@ -12,6 +12,7 @@ import org.prebid.mobile.VideoParameters;
 import org.prebid.mobile.api.data.AdFormat;
 import org.prebid.mobile.api.data.AdUnitFormat;
 import org.prebid.mobile.api.data.Position;
+import org.prebid.mobile.daro.DaroPrebidTrackingObserver;
 import org.prebid.mobile.rendering.bidding.data.bid.BidResponse;
 import org.prebid.mobile.rendering.interstitial.InterstitialSizes;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardManager;
@@ -78,6 +79,8 @@ public class AdUnitConfiguration {
     private VideoParameters videoParameters;
     private NativeAdUnitConfiguration nativeConfiguration;
     private RewardManager rewardManager = new RewardManager();
+    @Nullable
+    private DaroPrebidTrackingObserver daroTrackingObserver;
 
     private final EnumSet<AdFormat> adFormats = EnumSet.noneOf(AdFormat.class);
     private final HashSet<AdSize> adSizes = new HashSet<>();
@@ -317,6 +320,15 @@ public class AdUnitConfiguration {
 
     public boolean isDaroFullscreenRenderer() {
         return daroFullscreenRenderer;
+    }
+
+    public void setDaroTrackingObserver(@Nullable DaroPrebidTrackingObserver daroTrackingObserver) {
+        this.daroTrackingObserver = daroTrackingObserver;
+    }
+
+    @Nullable
+    public DaroPrebidTrackingObserver getDaroTrackingObserver() {
+        return daroTrackingObserver;
     }
 
     public void setCloseButtonArea(@FloatRange(from = 0, to = 1.0) double closeButtonArea) {

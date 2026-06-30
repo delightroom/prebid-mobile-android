@@ -105,6 +105,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         resetRenderState(RenderMode.VIDEO);
 
         AdUnitConfiguration adConfiguration = createVastAdConfiguration(width, height, rewarded);
+        attachTrackingObserver(adConfiguration);
         adConfiguration.getRewardManager().clear();
         if (rewarded) {
             adConfiguration.getRewardManager().setRewardedExt(defaultVideoRewardedExt());
@@ -136,6 +137,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         resetRenderState(RenderMode.HTML);
 
         AdUnitConfiguration adConfiguration = createHtmlAdConfiguration(width, height, rewarded);
+        attachTrackingObserver(adConfiguration);
         adConfiguration.getRewardManager().clear();
         if (rewarded) {
             adConfiguration.getRewardManager().setRewardedExt(defaultHtmlRewardedExt());
@@ -183,6 +185,14 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         adConfiguration.setSkipDelay(DEFAULT_DARO_SKIP_DELAY_SECONDS);
         adConfiguration.setDaroFullscreenRenderer(true);
         return adConfiguration;
+    }
+
+    private void attachTrackingObserver(@NonNull AdUnitConfiguration adConfiguration) {
+        adConfiguration.setDaroTrackingObserver(event -> {
+            if (!destroyed) {
+                listener.trackingEvent(event);
+            }
+        });
     }
 
     @NonNull

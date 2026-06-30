@@ -224,6 +224,7 @@ public class CreativeModelsMakerVast extends CreativeModelsMaker {
                 endCardConfig.setRewarded(shouldEndCardUseRewardedFlow(adConfiguration));
                 endCardConfig.getRewardManager().setRewardedExt(adConfiguration.getRewardManager().getRewardedExt());
                 endCardConfig.setHasEndCard(true);
+                endCardConfig.setDaroTrackingObserver(adConfiguration.getDaroTrackingObserver());
                 endCardModel.setAdConfiguration(endCardConfig);
 
 
