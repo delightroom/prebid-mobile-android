@@ -28,4 +28,20 @@ public class DaroPrebidFullscreenRendererTest {
         assertTrue(configuration.getAdFormats().contains(AdFormat.INTERSTITIAL));
     }
 
+    @Test
+    public void createVastAdConfiguration_UsesCustomSkipDelay() {
+        AdUnitConfiguration configuration = DaroPrebidFullscreenRenderer.createVastAdConfiguration(320, 480, true, 8);
+
+        assertEquals(8, configuration.getSkipDelay());
+        assertTrue(configuration.isDaroFullscreenRenderer());
+    }
+
+    @Test
+    public void createHtmlAdConfiguration_UsesCustomSkipDelay() {
+        AdUnitConfiguration configuration = DaroPrebidFullscreenRenderer.createHtmlAdConfiguration(320, 480, false, 9);
+
+        assertEquals(9, configuration.getSkipDelay());
+        assertTrue(configuration.isDaroFullscreenRenderer());
+    }
+
 }
