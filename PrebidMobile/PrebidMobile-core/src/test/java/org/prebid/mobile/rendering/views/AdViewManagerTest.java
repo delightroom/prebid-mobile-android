@@ -245,7 +245,7 @@ public class AdViewManagerTest {
     }
 
     @Test
-    public void creativeDidComplete_DaroRewardedWithEndCard_DoesNotAutoAdvanceToEndCard() throws Exception {
+    public void creativeDidComplete_DaroRewardedWithEndCard_DoesNotAutoAdvanceOrReward() throws Exception {
         AdUnitConfiguration configuration = new AdUnitConfiguration();
         configuration.setDaroFullscreenRenderer(true);
         configuration.setRewarded(true);
@@ -266,8 +266,8 @@ public class AdViewManagerTest {
         verify(mockTransactionManager, never()).incrementCreativesCounter();
         verify(mockInterstitialManager, never()).setInterstitialDisplayDelegate(any());
         verify(mockInterstitialManager, never()).displayAdViewInInterstitial(any(), any());
-        verify(rewardListener).run();
-        assertTrue(rewardManager.getUserRewardedAlready());
+        verify(rewardListener, never()).run();
+        assertFalse(rewardManager.getUserRewardedAlready());
         verify(mockAdViewListener).videoCreativePlaybackFinished();
     }
 

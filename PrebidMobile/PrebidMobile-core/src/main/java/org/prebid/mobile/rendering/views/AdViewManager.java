@@ -407,7 +407,6 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
         Transaction transaction = transactionManager.getCurrentTransaction();
         boolean isBuiltInVideo = creative.isBuiltInVideo();
         if (shouldSuppressDaroRewardedAutoEndCard()) {
-            adConfiguration.getRewardManager().notifyRewardListener();
             adViewListener.videoCreativePlaybackFinished();
             return;
         }
