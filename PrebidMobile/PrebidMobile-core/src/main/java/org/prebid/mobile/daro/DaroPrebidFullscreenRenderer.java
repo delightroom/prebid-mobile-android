@@ -37,6 +37,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
     private boolean impressionSent;
     private RenderMode renderMode = RenderMode.VIDEO;
     private int skipDelaySeconds = DEFAULT_DARO_SKIP_DELAY_SECONDS;
+    private boolean initialMuted = false;
 
     public DaroPrebidFullscreenRenderer(
         @NonNull Context context,
@@ -103,13 +104,17 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         skipDelaySeconds = Math.max(0, seconds);
     }
 
+    public void setInitialMuted(boolean muted) {
+        initialMuted = muted;
+    }
+
     public void renderVast(@NonNull String vastXml, int width, int height, boolean rewarded) {
         if (destroyed) {
             return;
         }
         resetRenderState(RenderMode.VIDEO);
 
-        AdUnitConfiguration adConfiguration = createVastAdConfiguration(width, height, rewarded, skipDelaySeconds);
+        AdUnitConfiguration adConfiguration = createVastAdConfiguration(width, height, rewarded, skipDelaySeconds, initialMuted);
         attachTrackingObserver(adConfiguration);
         adConfiguration.getRewardManager().clear();
         if (rewarded) {
@@ -141,7 +146,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         }
         resetRenderState(RenderMode.HTML);
 
-        AdUnitConfiguration adConfiguration = createHtmlAdConfiguration(width, height, rewarded, skipDelaySeconds);
+        AdUnitConfiguration adConfiguration = createHtmlAdConfiguration(width, height, rewarded, skipDelaySeconds, initialMuted);
         attachTrackingObserver(adConfiguration);
         adConfiguration.getRewardManager().clear();
         if (rewarded) {
@@ -170,7 +175,12 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
 
     @VisibleForTesting
     static AdUnitConfiguration createVastAdConfiguration(int width, int height, boolean rewarded, int skipDelaySeconds) {
-        AdUnitConfiguration adConfiguration = createBaseAdConfiguration(width, height, rewarded, skipDelaySeconds);
+        return createVastAdConfiguration(width, height, rewarded, skipDelaySeconds, false);
+    }
+
+    @VisibleForTesting
+    static AdUnitConfiguration createVastAdConfiguration(int width, int height, boolean rewarded, int skipDelaySeconds, boolean initialMuted) {
+        AdUnitConfiguration adConfiguration = createBaseAdConfiguration(width, height, rewarded, skipDelaySeconds, initialMuted);
         adConfiguration.setAdFormats(EnumSet.of(AdFormat.INTERSTITIAL, AdFormat.VAST));
         adConfiguration.setAdFormat(AdFormat.VAST);
         return adConfiguration;
@@ -183,13 +193,18 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
 
     @VisibleForTesting
     static AdUnitConfiguration createHtmlAdConfiguration(int width, int height, boolean rewarded, int skipDelaySeconds) {
-        AdUnitConfiguration adConfiguration = createBaseAdConfiguration(width, height, rewarded, skipDelaySeconds);
+        return createHtmlAdConfiguration(width, height, rewarded, skipDelaySeconds, false);
+    }
+
+    @VisibleForTesting
+    static AdUnitConfiguration createHtmlAdConfiguration(int width, int height, boolean rewarded, int skipDelaySeconds, boolean initialMuted) {
+        AdUnitConfiguration adConfiguration = createBaseAdConfiguration(width, height, rewarded, skipDelaySeconds, initialMuted);
         adConfiguration.setAdFormats(EnumSet.of(AdFormat.INTERSTITIAL));
         adConfiguration.setAdFormat(AdFormat.INTERSTITIAL);
         return adConfiguration;
     }
 
-    private static AdUnitConfiguration createBaseAdConfiguration(int width, int height, boolean rewarded, int skipDelaySeconds) {
+    private static AdUnitConfiguration createBaseAdConfiguration(int width, int height, boolean rewarded, int skipDelaySeconds, boolean initialMuted) {
         AdUnitConfiguration adConfiguration = new AdUnitConfiguration();
         adConfiguration.setRewarded(rewarded);
         adConfiguration.setAdPosition(AdPosition.FULLSCREEN);
@@ -198,6 +213,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         adConfiguration.setInterstitialSize(width, height);
         adConfiguration.setAutoRefreshDelay(0);
         adConfiguration.setSkipDelay(Math.max(0, skipDelaySeconds));
+        adConfiguration.setIsMuted(initialMuted);
         adConfiguration.setDaroFullscreenRenderer(true);
         return adConfiguration;
     }
