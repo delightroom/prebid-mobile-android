@@ -246,6 +246,10 @@ public class AdViewProgressUpdateTask extends AsyncTask<Void, Long, Void> {
             return percentage;
         }
 
+        if (config.isDaroFullscreenRenderer()) {
+            return 100;
+        }
+
         return null;
     }
 

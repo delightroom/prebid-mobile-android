@@ -154,6 +154,60 @@ public class VideoCreativeTest {
     }
 
     @Test
+    public void complete_DaroRewardedFullscreen_NotifiesRewardListener() {
+        CreativeViewListener mockCreativeViewListener = mock(CreativeViewListener.class);
+        Runnable mockRewardListener = mock(Runnable.class);
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setRewarded(true);
+        configuration.setDaroFullscreenRenderer(true);
+        configuration.getRewardManager().setRewardListener(mockRewardListener);
+        videoCreative.setCreativeViewListener(mockCreativeViewListener);
+        when(mockModel.getAdConfiguration()).thenReturn(configuration);
+
+        videoCreative.complete();
+
+        verify(mockModel).trackVideoEvent(VideoAdEvent.Event.AD_COMPLETE);
+        verify(mockRewardListener).run();
+        verify(mockCreativeViewListener).creativeDidComplete(videoCreative);
+    }
+
+    @Test
+    public void complete_DaroRewardedFullscreen_AlreadyRewarded_DoesNotNotifyRewardListenerAgain() {
+        CreativeViewListener mockCreativeViewListener = mock(CreativeViewListener.class);
+        Runnable mockRewardListener = mock(Runnable.class);
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setRewarded(true);
+        configuration.setDaroFullscreenRenderer(true);
+        configuration.getRewardManager().setRewardListener(mockRewardListener);
+        configuration.getRewardManager().notifyRewardListener();
+        videoCreative.setCreativeViewListener(mockCreativeViewListener);
+        when(mockModel.getAdConfiguration()).thenReturn(configuration);
+
+        videoCreative.complete();
+
+        verify(mockModel).trackVideoEvent(VideoAdEvent.Event.AD_COMPLETE);
+        verify(mockRewardListener, times(1)).run();
+        verify(mockCreativeViewListener).creativeDidComplete(videoCreative);
+    }
+
+    @Test
+    public void complete_NonDaroRewardedFullscreen_DoesNotNotifyRewardListener() {
+        CreativeViewListener mockCreativeViewListener = mock(CreativeViewListener.class);
+        Runnable mockRewardListener = mock(Runnable.class);
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setRewarded(true);
+        configuration.getRewardManager().setRewardListener(mockRewardListener);
+        videoCreative.setCreativeViewListener(mockCreativeViewListener);
+        when(mockModel.getAdConfiguration()).thenReturn(configuration);
+
+        videoCreative.complete();
+
+        verify(mockModel).trackVideoEvent(VideoAdEvent.Event.AD_COMPLETE);
+        verify(mockRewardListener, never()).run();
+        verify(mockCreativeViewListener).creativeDidComplete(videoCreative);
+    }
+
+    @Test
     public void destroyTest() throws Exception {
         VideoDownloadTask mockVideoDownloadTask = mock(VideoDownloadTask.class);
         WhiteBox.field(VideoCreative.class, "videoDownloadTask").set(videoCreative, mockVideoDownloadTask);

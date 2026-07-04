@@ -377,6 +377,7 @@ public class VideoCreative extends VideoCreativeProtocol
         LogUtil.debug(TAG, "Track 'complete' event");
 
         model.trackVideoEvent(VideoAdEvent.Event.AD_COMPLETE);
+        notifyDaroRewardOnVideoComplete();
 
         if (videoCreativeView != null) {
             videoCreativeView.hideVolumeControls();
@@ -384,6 +385,17 @@ public class VideoCreative extends VideoCreativeProtocol
 
         // Send it to AdView
         getCreativeViewListener().creativeDidComplete(this);
+    }
+
+    private void notifyDaroRewardOnVideoComplete() {
+        AdUnitConfiguration adConfiguration = model.getAdConfiguration();
+        if (adConfiguration == null
+                || !adConfiguration.isRewarded()
+                || !adConfiguration.isDaroFullscreenRenderer()) {
+            return;
+        }
+
+        adConfiguration.getRewardManager().notifyRewardListener();
     }
 
     protected void showCallToAction() {
