@@ -37,6 +37,8 @@ public class WebViewBase extends AdWebView implements AdAssetsLoadedListener {
     private static final String TAG = WebViewBase.class.getSimpleName();
 
     private static final String REGEX_IFRAME = "(<iframe[^>]*)>";
+    private static final String IMA_BRIDGE_OVERLAY_MITIGATION_SCRIPT_TAG =
+            "<script type='text/javascript'>" + buildImaBridgeOverlayMitigationScript() + "</script>";
 
     protected MraidEventsManager.MraidListener mraidListener;
     protected String MRAIDBridgeName;
@@ -292,9 +294,52 @@ public class WebViewBase extends AdWebView implements AdAssetsLoadedListener {
                        + centerAdStyle
 
                        + originalHtml
+                       + IMA_BRIDGE_OVERLAY_MITIGATION_SCRIPT_TAG
 
                        + "</body></html>";
         return originalHtml;
+    }
+
+    static String buildImaBridgeOverlayMitigationScript() {
+        return "(function(){"
+               + "if(window.__pbmImaBridgeOverlayMitigationInstalled){return;}"
+               + "window.__pbmImaBridgeOverlayMitigationInstalled=true;"
+               + "function hasActiveVisibleVideo(){"
+               + "  var videos=document.querySelectorAll('video');"
+               + "  for(var i=0;i<videos.length;i++){"
+               + "    var video=videos[i];"
+               + "    var rect=video.getBoundingClientRect();"
+               + "    if((video.currentSrc||video.src)&&video.readyState>=2&&!video.ended&&rect.width>0&&rect.height>0){return true;}"
+               + "  }"
+               + "  return false;"
+               + "}"
+               + "function softenImaBridgeOverlays(){"
+               + "  var shouldSoften=hasActiveVisibleVideo();"
+               + "  var frames=document.querySelectorAll('iframe[src*=\"imasdk.googleapis.com/js/core/bridge\"]');"
+               + "  for(var i=0;i<frames.length;i++){"
+               + "    var frame=frames[i];"
+               + "    var rect=frame.getBoundingClientRect();"
+               + "    if(rect.width<=0||rect.height<=0){continue;}"
+               + "    if(shouldSoften){"
+               + "      frame.style.setProperty('opacity','0','important');"
+               + "    }else{"
+               + "      frame.style.removeProperty('opacity');"
+               + "    }"
+               + "  }"
+               + "}"
+               + "var attempts=0;"
+               + "var timer=setInterval(function(){"
+               + "  attempts+=1;"
+               + "  softenImaBridgeOverlays();"
+               + "  if(attempts>=120){clearInterval(timer);}"
+               + "},250);"
+               + "document.addEventListener('loadeddata',softenImaBridgeOverlays,true);"
+               + "document.addEventListener('playing',softenImaBridgeOverlays,true);"
+               + "document.addEventListener('ended',softenImaBridgeOverlays,true);"
+               + "if(document.documentElement){"
+               + "  new MutationObserver(softenImaBridgeOverlays).observe(document.documentElement,{childList:true,subtree:true});"
+               + "}"
+               + "})();";
     }
 
     private String buildViewportMetaTag() {
