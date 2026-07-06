@@ -106,12 +106,27 @@ public class WebViewBaseTest {
         webViewBase.initLoad();
         String newAdHtml = (String) WhiteBox.field(WebViewBase.class, "adHTML").get(webViewBase);
         assertNotEquals(adHTML, newAdHtml);
+        assertTrue(newAdHtml.contains("__pbmImaBridgeOverlayMitigationInstalled"));
 
         adHTML = ResourceUtils.convertResourceToString("ad_mraid_html.txt");
         webViewBase = new WebViewBase(context, adHTML, 100, 200, mockPreloadListener, mockMraidListener);
         webViewBase.initLoad();
         newAdHtml = (String) WhiteBox.field(WebViewBase.class, "adHTML").get(webViewBase);
         assertNotEquals(adHTML, newAdHtml);
+        assertTrue(newAdHtml.contains("__pbmImaBridgeOverlayMitigationInstalled"));
+    }
+
+    @Test
+    public void buildImaBridgeOverlayMitigationScriptTest() {
+        String script = WebViewBase.buildImaBridgeOverlayMitigationScript();
+
+        assertTrue(script.contains("readyState>=2&&!video.ended"));
+        assertTrue(script.contains("imasdk.googleapis.com/js/core/bridge"));
+        assertTrue(script.contains("style.setProperty('opacity','0','important')"));
+        assertTrue(script.contains("style.removeProperty('opacity')"));
+        assertTrue(script.contains("document.addEventListener('ended'"));
+        assertFalse(script.contains("pointer-events"));
+        assertTrue(script.contains("MutationObserver"));
     }
 
     @Test
