@@ -32,6 +32,7 @@ import org.prebid.mobile.rendering.bidding.interfaces.InterstitialViewListener;
 import org.prebid.mobile.rendering.models.internal.InternalFriendlyObstruction;
 import org.prebid.mobile.rendering.views.AdViewManager;
 import org.prebid.mobile.rendering.views.interstitial.DaroFullscreenChromeView;
+import org.prebid.mobile.rendering.views.interstitial.InterstitialManager;
 import org.prebid.mobile.rendering.views.interstitial.InterstitialVideo;
 import org.prebid.mobile.test.utils.WhiteBox;
 import org.robolectric.Robolectric;
@@ -46,6 +47,7 @@ public class InterstitialViewTest {
     private InterstitialView spyBidInterstitialView;
     private Context context;
     @Mock private AdViewManager mockAdViewManager;
+    @Mock private InterstitialManager mockInterstitialManager;
 
     @Before
     public void setup() throws AdException, IllegalAccessException {
@@ -57,6 +59,7 @@ public class InterstitialViewTest {
 
         when(mockAdViewManager.getAdConfiguration()).thenReturn(mock(AdUnitConfiguration.class));
         WhiteBox.field(InterstitialView.class, "adViewManager").set(spyBidInterstitialView, mockAdViewManager);
+        WhiteBox.field(InterstitialView.class, "interstitialManager").set(spyBidInterstitialView, mockInterstitialManager);
     }
 
     @Test
@@ -133,6 +136,18 @@ public class InterstitialViewTest {
         verify(interstitialVideo).hide();
         verify(interstitialVideo, never()).close();
         assertEquals(null, WhiteBox.field(InterstitialView.class, "interstitialVideo").get(spyBidInterstitialView));
+    }
+
+    @Test
+    public void showHtmlAsInterstitial_UsesProvidedActivity() {
+        Activity showActivity = Robolectric.buildActivity(Activity.class).create().get();
+        InterstitialViewListener listener = mock(InterstitialViewListener.class);
+        spyBidInterstitialView.setInterstitialViewListener(listener);
+
+        spyBidInterstitialView.showHtmlAsInterstitial(showActivity);
+
+        verify(mockInterstitialManager).displayAdViewInInterstitial(showActivity, spyBidInterstitialView);
+        verify(listener).onAdDisplayed(spyBidInterstitialView);
     }
 
     private void addChildView(int id) {

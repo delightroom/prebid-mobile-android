@@ -21,6 +21,7 @@ import android.content.Context;
 import android.content.res.Configuration;
 import android.util.Log;
 import android.view.View;
+import androidx.annotation.NonNull;
 import org.prebid.mobile.AdSize;
 import org.prebid.mobile.LogUtil;
 import org.prebid.mobile.api.data.AdFormat;
@@ -199,18 +200,22 @@ public class InterstitialView extends BaseAdView {
     }
 
     public void showHtmlAsInterstitial() {
-        try {
-            if (!(getContext() instanceof Activity)) {
-                notifyErrorListeners(new AdException(
-                    AdException.INTERNAL_ERROR,
-                    "Interstitial failed to show: context is not an Activity"
-                ));
-                return;
-            }
+        if (!(getContext() instanceof Activity)) {
+            notifyErrorListeners(new AdException(
+                AdException.INTERNAL_ERROR,
+                "Interstitial failed to show: context is not an Activity"
+            ));
+            return;
+        }
 
+        showHtmlAsInterstitial((Activity) getContext());
+    }
+
+    public void showHtmlAsInterstitial(@NonNull Activity activity) {
+        try {
             displayNotificationDeferred = true;
             interstitialManager.configureInterstitialProperties(adViewManager.getAdConfiguration());
-            interstitialManager.displayAdViewInInterstitial(getContext(), InterstitialView.this);
+            interstitialManager.displayAdViewInInterstitial(activity, InterstitialView.this);
             listener.onAdDisplayed(InterstitialView.this);
         } catch (final Exception e) {
             LogUtil.error(TAG, "HTML interstitial failed to show:" + Log.getStackTraceString(e));
@@ -260,11 +265,19 @@ public class InterstitialView extends BaseAdView {
     }
 
     public void showVideoAsInterstitial() {
+        showVideoAsInterstitial(getContext());
+    }
+
+    public void showVideoAsInterstitial(@NonNull Activity activity) {
+        showVideoAsInterstitial((Context) activity);
+    }
+
+    private void showVideoAsInterstitial(Context context) {
         try {
             final AdUnitConfiguration adConfiguration = adViewManager.getAdConfiguration();
             interstitialManager.configureInterstitialProperties(adConfiguration);
             interstitialVideo = new InterstitialVideo(
-                getContext(),
+                context,
                 InterstitialView.this,
                 interstitialManager,
                 adConfiguration

@@ -1,7 +1,10 @@
 package org.prebid.mobile.daro;
 
+import android.app.Activity;
 import android.content.Context;
+import android.content.ContextWrapper;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import org.prebid.mobile.AdSize;
 import org.prebid.mobile.api.data.AdFormat;
@@ -43,8 +46,16 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         @NonNull Context context,
         @NonNull DaroPrebidRenderListener listener
     ) throws AdException {
+        this(new InterstitialView(requireActivity(context)), listener);
+    }
+
+    @VisibleForTesting
+    DaroPrebidFullscreenRenderer(
+        @NonNull InterstitialView interstitialView,
+        @NonNull DaroPrebidRenderListener listener
+    ) {
         this.listener = listener;
-        this.interstitialView = new InterstitialView(context);
+        this.interstitialView = interstitialView;
         this.interstitialView.setInterstitialViewListener(new InterstitialViewListener() {
             @Override
             public void onAdLoaded(InterstitialView interstitialView, AdDetails adDetails) {
@@ -274,6 +285,15 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
     }
 
     public void show() {
+        showInternal(null, false);
+    }
+
+    public void show(@NonNull Context context) {
+        Activity activity = activityFromContext(context);
+        showInternal(activity, true);
+    }
+
+    private void showInternal(@Nullable Activity activity, boolean requiresActivity) {
         if (destroyed) {
             return;
         }
@@ -287,13 +307,67 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
             ));
             return;
         }
+        if (activityFromContext(interstitialView.getContext()) == null) {
+            loaded = false;
+            listener.renderFailed(new AdException(
+                AdException.INTERNAL_ERROR,
+                "Fullscreen ad failed to show: load Activity is no longer active"
+            ));
+            return;
+        }
+        if (requiresActivity && activity == null) {
+            loaded = false;
+            listener.renderFailed(new AdException(
+                AdException.INTERNAL_ERROR,
+                "Fullscreen ad failed to show: context does not contain an active Activity"
+            ));
+            return;
+        }
         showing = true;
         loaded = false;
         if (renderMode == RenderMode.HTML) {
-            interstitialView.showHtmlAsInterstitial();
+            if (activity == null) {
+                interstitialView.showHtmlAsInterstitial();
+            } else {
+                interstitialView.showHtmlAsInterstitial(activity);
+            }
         } else {
-            interstitialView.showVideoAsInterstitial();
+            if (activity == null) {
+                interstitialView.showVideoAsInterstitial();
+            } else {
+                interstitialView.showVideoAsInterstitial(activity);
+            }
         }
+    }
+
+    @NonNull
+    private static Activity requireActivity(@NonNull Context context) throws AdException {
+        Activity activity = activityFromContext(context);
+        if (activity == null) {
+            throw new AdException(
+                AdException.INTERNAL_ERROR,
+                "Fullscreen renderer requires an active Activity context"
+            );
+        }
+        return activity;
+    }
+
+    @VisibleForTesting
+    @Nullable
+    static Activity activityFromContext(@Nullable Context context) {
+        Context current = context;
+        while (current instanceof ContextWrapper) {
+            if (current instanceof Activity) {
+                Activity activity = (Activity) current;
+                return activity.isFinishing() || activity.isDestroyed() ? null : activity;
+            }
+            Context baseContext = ((ContextWrapper) current).getBaseContext();
+            if (baseContext == current) {
+                return null;
+            }
+            current = baseContext;
+        }
+        return null;
     }
 
     @Override
