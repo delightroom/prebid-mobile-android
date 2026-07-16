@@ -106,12 +106,14 @@ public class WebViewBaseTest {
         webViewBase.initLoad();
         String newAdHtml = (String) WhiteBox.field(WebViewBase.class, "adHTML").get(webViewBase);
         assertNotEquals(adHTML, newAdHtml);
+        assertFalse(newAdHtml.contains("__pbmImaBridgeOverlayMitigationInstalled"));
 
         adHTML = ResourceUtils.convertResourceToString("ad_mraid_html.txt");
         webViewBase = new WebViewBase(context, adHTML, 100, 200, mockPreloadListener, mockMraidListener);
         webViewBase.initLoad();
         newAdHtml = (String) WhiteBox.field(WebViewBase.class, "adHTML").get(webViewBase);
         assertNotEquals(adHTML, newAdHtml);
+        assertFalse(newAdHtml.contains("__pbmImaBridgeOverlayMitigationInstalled"));
     }
 
     @Test

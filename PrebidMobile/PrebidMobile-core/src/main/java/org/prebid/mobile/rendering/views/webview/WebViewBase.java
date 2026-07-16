@@ -37,7 +37,6 @@ public class WebViewBase extends AdWebView implements AdAssetsLoadedListener {
     private static final String TAG = WebViewBase.class.getSimpleName();
 
     private static final String REGEX_IFRAME = "(<iframe[^>]*)>";
-
     protected MraidEventsManager.MraidListener mraidListener;
     protected String MRAIDBridgeName;
 
