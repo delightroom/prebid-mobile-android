@@ -123,10 +123,6 @@ public class VideoCreativeTest {
         videoCreative.onPlayerStateChanged(InternalPlayerState.NORMAL);
         verify(mockModel).trackPlayerStateChange(InternalPlayerState.NORMAL);
 
-        videoCreative.skip();
-        verify(mockModel).trackVideoEvent(VideoAdEvent.Event.AD_SKIP);
-        mockCreativeViewListener.creativeDidComplete(videoCreative);
-
         videoCreative.onEvent(VideoAdEvent.Event.AD_RESUME);
         verify(mockModel).trackVideoEvent(VideoAdEvent.Event.AD_RESUME);
 
@@ -162,6 +158,27 @@ public class VideoCreativeTest {
         videoCreative.skip();
 
         verify(mockModel, times(1)).trackVideoEvent(VideoAdEvent.Event.AD_SKIP);
+        verify(listener, times(1)).creativeDidComplete(videoCreative);
+    }
+
+    @Test
+    public void skipSuppressesCloseAndLateCompleteCallbacks() {
+        CreativeViewListener listener = mock(CreativeViewListener.class);
+        Runnable rewardListener = mock(Runnable.class);
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setRewarded(true);
+        configuration.setDaroFullscreenRenderer(true);
+        configuration.getRewardManager().setRewardListener(rewardListener);
+        when(mockModel.getAdConfiguration()).thenReturn(configuration);
+        videoCreative.setCreativeViewListener(listener);
+
+        videoCreative.skip();
+        videoCreative.onVideoInterstitialClosed();
+        videoCreative.complete();
+
+        verify(mockModel, times(1)).trackVideoEvent(VideoAdEvent.Event.AD_SKIP);
+        verify(mockModel, never()).trackVideoEvent(VideoAdEvent.Event.AD_COMPLETE);
+        verify(rewardListener, never()).run();
         verify(listener, times(1)).creativeDidComplete(videoCreative);
     }
 
