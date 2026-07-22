@@ -40,6 +40,7 @@ import org.robolectric.annotation.Config;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyFloat;
 import static org.mockito.Mockito.*;
 
@@ -157,6 +158,7 @@ public class VideoCreativeTest {
         videoCreative.skip();
         videoCreative.skip();
 
+        assertTrue(videoCreative.wasSkipped());
         verify(mockModel, times(1)).trackVideoEvent(VideoAdEvent.Event.AD_SKIP);
         verify(listener, times(1)).creativeDidComplete(videoCreative);
     }

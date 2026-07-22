@@ -56,6 +56,7 @@ public class VideoCreative extends VideoCreativeProtocol
 
     private String preloadedVideoFilePath;
     private boolean terminalEventHandled;
+    private boolean skipped;
 
     public VideoCreative(Context context,
                          @NonNull
@@ -107,6 +108,7 @@ public class VideoCreative extends VideoCreativeProtocol
         if (!beginTerminalEvent()) {
             return;
         }
+        skipped = true;
         LogUtil.debug(TAG, "Track 'skip' event");
         model.trackVideoEvent(VideoAdEvent.Event.AD_SKIP);
         // Send it to AdView
@@ -299,6 +301,10 @@ public class VideoCreative extends VideoCreativeProtocol
 
     public long getVideoSkipOffset() {
         return model.getSkipOffset();
+    }
+
+    public boolean wasSkipped() {
+        return skipped;
     }
 
     @Override

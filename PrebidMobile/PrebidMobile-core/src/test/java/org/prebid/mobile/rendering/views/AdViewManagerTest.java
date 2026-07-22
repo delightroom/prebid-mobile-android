@@ -269,6 +269,7 @@ public class AdViewManagerTest {
         verify(rewardListener, never()).run();
         assertFalse(rewardManager.getUserRewardedAlready());
         verify(mockAdViewListener).videoCreativePlaybackFinished();
+        verify(mockAdViewListener).adCompleted();
     }
 
     @Test
@@ -297,6 +298,7 @@ public class AdViewManagerTest {
 
         verify(mockAdView).hideInterstitialVideo();
         verify(mockAdViewListener).videoCreativePlaybackFinished();
+        verify(mockAdViewListener).adCompleted();
     }
 
     @Test
@@ -828,6 +830,7 @@ public class AdViewManagerTest {
         WhiteBox.field(AdViewManager.class, "adConfiguration").set(adViewManager, configuration);
         WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, mockAdView);
         clearInvocations(mockInterstitialManager);
+        when(mockVideoCreative.wasSkipped()).thenReturn(true);
         doAnswer(invocation -> {
             adViewManager.creativeDidComplete(mockVideoCreative);
             return null;
@@ -837,7 +840,7 @@ public class AdViewManagerTest {
 
         assertTrue(handled);
         verify(mockVideoCreative, times(1)).skip();
-        verify(mockAdViewListener, times(1)).adCompleted();
+        verify(mockAdViewListener, never()).adCompleted();
         verify(mockAdViewListener, times(1)).videoCreativePlaybackFinished();
         verify(rewardListener, never()).run();
         assertFalse(rewardManager.getUserRewardedAlready());

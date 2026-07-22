@@ -187,7 +187,9 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
             resetTransactionState();
         }
 
-        adViewListener.adCompleted();
+        if (!isDaroFullscreenVideoSkip(creative)) {
+            adViewListener.adCompleted();
+        }
 
         // If banner refresh enabled and another ad is available, show that ad
         if (isAutoDisplayOnLoad() && transactionManager.hasTransaction()) {
@@ -443,6 +445,13 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
     private boolean shouldSuppressDaroRewardedAutoEndCard() {
         return shouldUseDaroEndCardHandoff()
                 && adConfiguration.isRewarded();
+    }
+
+    private boolean isDaroFullscreenVideoSkip(AbstractCreative creative) {
+        return adConfiguration != null
+                && adConfiguration.isDaroFullscreenRenderer()
+                && creative instanceof VideoCreative
+                && ((VideoCreative) creative).wasSkipped();
     }
 
     private boolean shouldUseDaroEndCardHandoff() {
