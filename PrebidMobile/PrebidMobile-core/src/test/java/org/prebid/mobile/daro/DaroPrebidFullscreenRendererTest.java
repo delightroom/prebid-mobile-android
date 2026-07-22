@@ -3,6 +3,7 @@ package org.prebid.mobile.daro;
 import android.app.Activity;
 import android.content.Context;
 import android.content.ContextWrapper;
+import android.os.Looper;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -22,6 +23,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.robolectric.Shadows.shadowOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -189,6 +191,50 @@ public class DaroPrebidFullscreenRendererTest {
         verify(interstitialView).showVideoAsInterstitial();
     }
 
+    @Test
+    public void postDisplayFailure_ReportsFailureClosesVideoAndSuppressesLateCallbacks() {
+        InterstitialView interstitialView = mock(InterstitialView.class);
+        DaroPrebidRenderListener renderListener = mock(DaroPrebidRenderListener.class);
+        DaroPrebidFullscreenRenderer renderer = renderer(interstitialView, renderListener);
+        InterstitialViewListener prebidListener = notifyLoaded(interstitialView);
+        AdException error = new AdException(AdException.INTERNAL_ERROR, "playback failed");
+
+        prebidListener.onAdDisplayed(interstitialView);
+        prebidListener.onAdFailed(interstitialView, error);
+        prebidListener.onAdFailed(interstitialView, error);
+        prebidListener.onAdCompleted(interstitialView);
+        prebidListener.onAdClicked(interstitialView);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        verify(renderListener).renderStarted();
+        verify(renderListener).impression();
+        verify(renderListener).renderFailed(error);
+        verify(interstitialView).dismissInterstitialAfterFailure();
+        verify(renderListener).closed();
+        verify(renderListener, never()).videoCompleted();
+        verify(renderListener, never()).click();
+    }
+
+    @Test
+    public void postDisplayHtmlFailure_DismissesInterstitialAndCloses() {
+        InterstitialView interstitialView = mock(InterstitialView.class);
+        DaroPrebidRenderListener renderListener = mock(DaroPrebidRenderListener.class);
+        DaroPrebidFullscreenRenderer renderer = renderer(interstitialView, renderListener);
+        renderer.renderHtml("<html></html>", 320, 480, false);
+        InterstitialViewListener prebidListener = notifyLoaded(interstitialView);
+        Activity showActivity = Robolectric.buildActivity(Activity.class).create().get();
+        AdException error = new AdException(AdException.INTERNAL_ERROR, "web view failed");
+
+        renderer.show(showActivity);
+        prebidListener.onAdDisplayed(interstitialView);
+        prebidListener.onAdFailed(interstitialView, error);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        verify(renderListener).renderFailed(error);
+        verify(interstitialView).dismissInterstitialAfterFailure();
+        verify(renderListener).closed();
+    }
+
     private DaroPrebidFullscreenRenderer loadedRenderer(
         InterstitialView interstitialView,
         DaroPrebidRenderListener renderListener
@@ -207,10 +253,11 @@ public class DaroPrebidFullscreenRendererTest {
         return new DaroPrebidFullscreenRenderer(interstitialView, renderListener);
     }
 
-    private void notifyLoaded(InterstitialView interstitialView) {
+    private InterstitialViewListener notifyLoaded(InterstitialView interstitialView) {
         ArgumentCaptor<InterstitialViewListener> listenerCaptor = ArgumentCaptor.forClass(InterstitialViewListener.class);
         verify(interstitialView).setInterstitialViewListener(listenerCaptor.capture());
         listenerCaptor.getValue().onAdLoaded(interstitialView, mock(AdDetails.class));
+        return listenerCaptor.getValue();
     }
 
 }

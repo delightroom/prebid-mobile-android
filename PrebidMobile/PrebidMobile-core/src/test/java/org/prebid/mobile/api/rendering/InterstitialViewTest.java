@@ -139,6 +139,25 @@ public class InterstitialViewTest {
     }
 
     @Test
+    public void dismissInterstitialAfterFailure_ForceDismissesVideoAndHtmlWithoutEndCardHandoff() throws IllegalAccessException {
+        InterstitialVideo interstitialVideo = mock(InterstitialVideo.class);
+        WhiteBox.field(InterstitialView.class, "interstitialVideo").set(spyBidInterstitialView, interstitialVideo);
+        doAnswer(invocation -> {
+            assertEquals(null, WhiteBox.field(InterstitialView.class, "interstitialVideo").get(spyBidInterstitialView));
+            return null;
+        }).when(interstitialVideo).cancel();
+
+        spyBidInterstitialView.dismissInterstitialAfterFailure();
+
+        verify(interstitialVideo).hide();
+        verify(interstitialVideo).cancel();
+        verify(interstitialVideo).removeViews();
+        verify(interstitialVideo, never()).close();
+        verify(mockInterstitialManager).dismissInterstitialAfterFailure();
+        assertEquals(null, WhiteBox.field(InterstitialView.class, "interstitialVideo").get(spyBidInterstitialView));
+    }
+
+    @Test
     public void showHtmlAsInterstitial_UsesProvidedActivity() {
         Activity showActivity = Robolectric.buildActivity(Activity.class).create().get();
         InterstitialViewListener listener = mock(InterstitialViewListener.class);

@@ -104,6 +104,18 @@ public class InterstitialManagerTest {
     }
 
     @Test
+    public void dismissInterstitialAfterFailure_NullifiesHtmlDialogExactlyOnce() throws IllegalAccessException {
+        AdInterstitialDialog dialog = mock(AdInterstitialDialog.class);
+        WhiteBox.field(InterstitialManager.class, "interstitialDialog").set(spyInterstitialManager, dialog);
+
+        spyInterstitialManager.dismissInterstitialAfterFailure();
+        spyInterstitialManager.dismissInterstitialAfterFailure();
+
+        verify(dialog, times(1)).nullifyDialog();
+        assertEquals(null, WhiteBox.field(InterstitialManager.class, "interstitialDialog").get(spyInterstitialManager));
+    }
+
+    @Test
     public void interstitialClosedAndMraidCollapsed_DoNotNotifyMraidDelegate()
     throws IllegalAccessException {
         HTMLCreative mockHtmlCreative = mock(HTMLCreative.class);
