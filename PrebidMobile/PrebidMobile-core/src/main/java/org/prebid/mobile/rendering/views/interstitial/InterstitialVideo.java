@@ -89,6 +89,7 @@ public class InterstitialVideo extends AdBaseDialog {
     private CountDownTimer skipCountDownTimer;
     @Nullable private RelativeLayout lytCountDownCircle;
     @Nullable private DaroFullscreenChromeView daroChromeView;
+    private boolean daroSkipHandled;
     @Nullable private View legacyCallToActionView;
 
     private int remainingTimeInMs = -1;
@@ -321,9 +322,18 @@ public class InterstitialVideo extends AdBaseDialog {
 
         skipView = daroChromeView.getSkipButton();
         skipView.setOnClickListener(v -> {
-            if (v.isEnabled()) {
-                handleCloseClick();
+            if (!v.isEnabled() || daroSkipHandled) {
+                return;
             }
+            daroSkipHandled = true;
+            v.setEnabled(false);
+            if (interstitialManager.handleVideoInterstitialSkip(this::hide)) {
+                stopTimer();
+                stopSkipCountDownTimer();
+                stopCountDownTimer();
+                return;
+            }
+            handleCloseClick();
         });
     }
 

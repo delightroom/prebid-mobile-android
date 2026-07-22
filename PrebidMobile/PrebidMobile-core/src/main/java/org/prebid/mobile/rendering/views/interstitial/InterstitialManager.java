@@ -154,6 +154,11 @@ public class InterstitialManager implements InterstitialManagerInterface {
                 && adViewManagerInterstitialDelegate.handleVideoInterstitialClose(onEndCardShown);
     }
 
+    public boolean handleVideoInterstitialSkip(Runnable onEndCardShown) {
+        return adViewManagerInterstitialDelegate != null
+                && adViewManagerInterstitialDelegate.handleVideoInterstitialSkip(onEndCardShown);
+    }
+
     public void dismissInterstitialAfterFailure() {
         if (interstitialDialog != null) {
             AdInterstitialDialog failedDialog = interstitialDialog;

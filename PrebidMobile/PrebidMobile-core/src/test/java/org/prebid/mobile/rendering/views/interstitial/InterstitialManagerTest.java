@@ -104,6 +104,17 @@ public class InterstitialManagerTest {
     }
 
     @Test
+    public void handleVideoInterstitialSkip_DelegatesToAdViewManager() {
+        Runnable onEndCardShown = mock(Runnable.class);
+        when(mockAdViewDelegate.handleVideoInterstitialSkip(onEndCardShown)).thenReturn(true);
+
+        boolean handled = spyInterstitialManager.handleVideoInterstitialSkip(onEndCardShown);
+
+        assertEquals(true, handled);
+        verify(mockAdViewDelegate).handleVideoInterstitialSkip(onEndCardShown);
+    }
+
+    @Test
     public void dismissInterstitialAfterFailure_NullifiesHtmlDialogExactlyOnce() throws IllegalAccessException {
         AdInterstitialDialog dialog = mock(AdInterstitialDialog.class);
         WhiteBox.field(InterstitialManager.class, "interstitialDialog").set(spyInterstitialManager, dialog);

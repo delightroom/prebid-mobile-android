@@ -55,6 +55,8 @@ public class VideoCreative extends VideoCreativeProtocol
     private AsyncTask videoDownloadTask;
 
     private String preloadedVideoFilePath;
+    private boolean terminalEventHandled;
+    private boolean skipped;
 
     public VideoCreative(Context context,
                          @NonNull
@@ -103,6 +105,10 @@ public class VideoCreative extends VideoCreativeProtocol
 
     @Override
     public void skip() {
+        if (!beginTerminalEvent()) {
+            return;
+        }
+        skipped = true;
         LogUtil.debug(TAG, "Track 'skip' event");
         model.trackVideoEvent(VideoAdEvent.Event.AD_SKIP);
         // Send it to AdView
@@ -288,13 +294,17 @@ public class VideoCreative extends VideoCreativeProtocol
         if (videoCreativeView != null) {
             videoCreativeView.destroy();
         }
-        if (getCreativeViewListener() != null) {
+        if (beginTerminalEvent() && getCreativeViewListener() != null) {
             getCreativeViewListener().creativeDidComplete(this);
         }
     }
 
     public long getVideoSkipOffset() {
         return model.getSkipOffset();
+    }
+
+    public boolean wasSkipped() {
+        return skipped;
     }
 
     @Override
@@ -374,6 +384,9 @@ public class VideoCreative extends VideoCreativeProtocol
     }
 
     protected void complete() {
+        if (!beginTerminalEvent()) {
+            return;
+        }
         LogUtil.debug(TAG, "Track 'complete' event");
 
         model.trackVideoEvent(VideoAdEvent.Event.AD_COMPLETE);
@@ -385,6 +398,14 @@ public class VideoCreative extends VideoCreativeProtocol
 
         // Send it to AdView
         getCreativeViewListener().creativeDidComplete(this);
+    }
+
+    private boolean beginTerminalEvent() {
+        if (terminalEventHandled) {
+            return false;
+        }
+        terminalEventHandled = true;
+        return true;
     }
 
     private void notifyDaroRewardOnVideoComplete() {

@@ -76,6 +76,11 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
         public boolean handleVideoInterstitialClose(Runnable onEndCardShown) {
             return handleDaroFullscreenVideoClose(onEndCardShown);
         }
+
+        @Override
+        public boolean handleVideoInterstitialSkip(Runnable onEndCardShown) {
+            return handleDaroFullscreenVideoSkip(onEndCardShown);
+        }
     };
 
     public AdViewManager(
@@ -182,7 +187,9 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
             resetTransactionState();
         }
 
-        adViewListener.adCompleted();
+        if (!isDaroFullscreenVideoSkip(creative)) {
+            adViewListener.adCompleted();
+        }
 
         // If banner refresh enabled and another ad is available, show that ad
         if (isAutoDisplayOnLoad() && transactionManager.hasTransaction()) {
@@ -440,6 +447,13 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
                 && adConfiguration.isRewarded();
     }
 
+    private boolean isDaroFullscreenVideoSkip(AbstractCreative creative) {
+        return adConfiguration != null
+                && adConfiguration.isDaroFullscreenRenderer()
+                && creative instanceof VideoCreative
+                && ((VideoCreative) creative).wasSkipped();
+    }
+
     private boolean shouldUseDaroEndCardHandoff() {
         return adConfiguration != null
                 && adConfiguration.isDaroFullscreenRenderer()
@@ -452,6 +466,26 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
         }
 
         displayNextEndCardCreative(onEndCardShown);
+        return true;
+    }
+
+    private boolean handleDaroFullscreenVideoSkip(Runnable onEndCardShown) {
+        if (adConfiguration == null
+                || !adConfiguration.isDaroFullscreenRenderer()
+                || transactionManager == null) {
+            return false;
+        }
+
+        AbstractCreative creative = transactionManager.getCurrentCreative();
+        if (!(creative instanceof VideoCreative)) {
+            return false;
+        }
+
+        boolean requiresRewardedEndCardHandoff = shouldSuppressDaroRewardedAutoEndCard();
+        ((VideoCreative) creative).skip();
+        if (requiresRewardedEndCardHandoff) {
+            displayNextEndCardCreative(onEndCardShown);
+        }
         return true;
     }
 
@@ -591,6 +625,10 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
         void showInterstitial();
 
         default boolean handleVideoInterstitialClose(Runnable onEndCardShown) {
+            return false;
+        }
+
+        default boolean handleVideoInterstitialSkip(Runnable onEndCardShown) {
             return false;
         }
     }

@@ -40,6 +40,7 @@ import org.robolectric.annotation.Config;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyFloat;
 import static org.mockito.Mockito.*;
 
@@ -123,10 +124,6 @@ public class VideoCreativeTest {
         videoCreative.onPlayerStateChanged(InternalPlayerState.NORMAL);
         verify(mockModel).trackPlayerStateChange(InternalPlayerState.NORMAL);
 
-        videoCreative.skip();
-        verify(mockModel).trackVideoEvent(VideoAdEvent.Event.AD_SKIP);
-        mockCreativeViewListener.creativeDidComplete(videoCreative);
-
         videoCreative.onEvent(VideoAdEvent.Event.AD_RESUME);
         verify(mockModel).trackVideoEvent(VideoAdEvent.Event.AD_RESUME);
 
@@ -151,6 +148,40 @@ public class VideoCreativeTest {
         videoCreative.videoCreativeView = null;
         videoCreative.onEvent(VideoAdEvent.Event.AD_START);
         verify(mockModel, atLeastOnce()).trackVideoEvent(VideoAdEvent.Event.AD_START);
+    }
+
+    @Test
+    public void skipTracksAndCompletesExactlyOnce() {
+        CreativeViewListener listener = mock(CreativeViewListener.class);
+        videoCreative.setCreativeViewListener(listener);
+
+        videoCreative.skip();
+        videoCreative.skip();
+
+        assertTrue(videoCreative.wasSkipped());
+        verify(mockModel, times(1)).trackVideoEvent(VideoAdEvent.Event.AD_SKIP);
+        verify(listener, times(1)).creativeDidComplete(videoCreative);
+    }
+
+    @Test
+    public void skipSuppressesCloseAndLateCompleteCallbacks() {
+        CreativeViewListener listener = mock(CreativeViewListener.class);
+        Runnable rewardListener = mock(Runnable.class);
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setRewarded(true);
+        configuration.setDaroFullscreenRenderer(true);
+        configuration.getRewardManager().setRewardListener(rewardListener);
+        when(mockModel.getAdConfiguration()).thenReturn(configuration);
+        videoCreative.setCreativeViewListener(listener);
+
+        videoCreative.skip();
+        videoCreative.onVideoInterstitialClosed();
+        videoCreative.complete();
+
+        verify(mockModel, times(1)).trackVideoEvent(VideoAdEvent.Event.AD_SKIP);
+        verify(mockModel, never()).trackVideoEvent(VideoAdEvent.Event.AD_COMPLETE);
+        verify(rewardListener, never()).run();
+        verify(listener, times(1)).creativeDidComplete(videoCreative);
     }
 
     @Test

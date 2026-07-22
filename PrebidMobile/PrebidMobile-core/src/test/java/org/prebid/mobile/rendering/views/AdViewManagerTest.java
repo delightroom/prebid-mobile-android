@@ -269,6 +269,7 @@ public class AdViewManagerTest {
         verify(rewardListener, never()).run();
         assertFalse(rewardManager.getUserRewardedAlready());
         verify(mockAdViewListener).videoCreativePlaybackFinished();
+        verify(mockAdViewListener).adCompleted();
     }
 
     @Test
@@ -297,6 +298,7 @@ public class AdViewManagerTest {
 
         verify(mockAdView).hideInterstitialVideo();
         verify(mockAdViewListener).videoCreativePlaybackFinished();
+        verify(mockAdViewListener).adCompleted();
     }
 
     @Test
@@ -367,6 +369,26 @@ public class AdViewManagerTest {
         verify(onEndCardShown).run();
         verify(rewardListener, never()).run();
         assertFalse(rewardManager.getUserRewardedAlready());
+    }
+
+    @Test
+    public void videoInterstitialSkip_DaroRewardedWithEndCard_CompletesOnceWithoutReward() throws Exception {
+        assertDaroSkipLifecycle(true, true);
+    }
+
+    @Test
+    public void videoInterstitialSkip_DaroRewardedWithoutEndCard_CompletesOnceWithoutReward() throws Exception {
+        assertDaroSkipLifecycle(true, false);
+    }
+
+    @Test
+    public void videoInterstitialSkip_DaroInterstitialWithEndCard_CompletesOnce() throws Exception {
+        assertDaroSkipLifecycle(false, true);
+    }
+
+    @Test
+    public void videoInterstitialSkip_DaroInterstitialWithoutEndCard_CompletesOnce() throws Exception {
+        assertDaroSkipLifecycle(false, false);
     }
 
     @Test
@@ -773,5 +795,64 @@ public class AdViewManagerTest {
         when(mockTransactionManager.getCurrentCreative()).thenReturn(mockVideoCreative);
         when(mockTransactionManager.hasNextCreative()).thenReturn(true);
         return mockTransactionManager;
+    }
+
+    private TransactionManager mockTransactionWithoutEndCard() {
+        Transaction mockTransaction = mock(Transaction.class);
+        CreativeFactory mockVideoFactory = mock(CreativeFactory.class);
+        when(mockVideoFactory.getCreative()).thenReturn(mockVideoCreative);
+        List<CreativeFactory> creativeFactories = new ArrayList<>();
+        creativeFactories.add(mockVideoFactory);
+        when(mockTransaction.getCreativeFactories()).thenReturn(creativeFactories);
+
+        TransactionManager mockTransactionManager = mock(TransactionManager.class);
+        when(mockTransactionManager.getCurrentTransaction()).thenReturn(mockTransaction);
+        when(mockTransactionManager.getCurrentCreative()).thenReturn(mockVideoCreative);
+        when(mockTransactionManager.hasNextCreative()).thenReturn(false);
+        return mockTransactionManager;
+    }
+
+    private void assertDaroSkipLifecycle(boolean rewarded, boolean hasEndCard) throws Exception {
+        AdViewManager.AdViewManagerInterstitialDelegate delegate = captureInterstitialDelegate();
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setDaroFullscreenRenderer(true);
+        configuration.setRewarded(rewarded);
+        RewardManager rewardManager = new RewardManager();
+        Runnable rewardListener = mock(Runnable.class);
+        rewardManager.setRewardListener(rewardListener);
+        configuration.setRewardManager(rewardManager);
+        mockVideoCreativeWithConfiguration(configuration);
+
+        TransactionManager transactionManager = hasEndCard
+                ? mockTransactionWithEndCard()
+                : mockTransactionWithoutEndCard();
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, transactionManager);
+        WhiteBox.field(AdViewManager.class, "adConfiguration").set(adViewManager, configuration);
+        WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, mockAdView);
+        clearInvocations(mockInterstitialManager);
+        when(mockVideoCreative.wasSkipped()).thenReturn(true);
+        doAnswer(invocation -> {
+            adViewManager.creativeDidComplete(mockVideoCreative);
+            return null;
+        }).when(mockVideoCreative).skip();
+
+        boolean handled = delegate.handleVideoInterstitialSkip(mock(Runnable.class));
+
+        assertTrue(handled);
+        verify(mockVideoCreative, times(1)).skip();
+        verify(mockAdViewListener, never()).adCompleted();
+        verify(mockAdViewListener, times(1)).videoCreativePlaybackFinished();
+        verify(rewardListener, never()).run();
+        assertFalse(rewardManager.getUserRewardedAlready());
+        if (hasEndCard) {
+            verify(transactionManager, times(1)).incrementCreativesCounter();
+            verify(mockVideoCreative, times(1)).destroy();
+            verify(mockAdView, never()).closeInterstitialVideo();
+            verify(mockInterstitialManager, times(1)).setInterstitialDisplayDelegate(any());
+        } else {
+            verify(transactionManager, never()).incrementCreativesCounter();
+            verify(mockAdView, times(1)).closeInterstitialVideo();
+            verify(mockInterstitialManager, never()).setInterstitialDisplayDelegate(any());
+        }
     }
 }
