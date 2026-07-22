@@ -3,6 +3,8 @@ package org.prebid.mobile.daro;
 import android.app.Activity;
 import android.content.Context;
 import android.content.ContextWrapper;
+import android.os.Handler;
+import android.os.Looper;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
@@ -38,6 +40,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
     private boolean startedSent;
     private boolean closedSent;
     private boolean impressionSent;
+    private boolean failureSent;
     private RenderMode renderMode = RenderMode.VIDEO;
     private int skipDelaySeconds = DEFAULT_DARO_SKIP_DELAY_SECONDS;
     private boolean initialMuted = false;
@@ -68,33 +71,46 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
 
             @Override
             public void onAdFailed(InterstitialView interstitialView, AdException error) {
-                if (destroyed) {
+                if (destroyed || failureSent || closedSent) {
                     return;
                 }
-                if (startedSent) {
-                    return;
-                }
+                boolean failedAfterDisplay = startedSent;
+                failureSent = true;
                 loaded = false;
-                showing = false;
+                if (!failedAfterDisplay) {
+                    showing = false;
+                }
                 DaroPrebidFullscreenRenderer.this.listener.renderFailed(error);
+                if (failedAfterDisplay) {
+                    new Handler(Looper.getMainLooper()).post(() -> {
+                        if (destroyed || closedSent) {
+                            return;
+                        }
+                        DaroPrebidFullscreenRenderer.this.interstitialView.dismissInterstitialAfterFailure();
+                        notifyClosed();
+                    });
+                }
             }
 
             @Override
             public void onAdDisplayed(InterstitialView interstitialView) {
+                if (failureSent) {
+                    return;
+                }
                 notifyStarted();
                 notifyImpression();
             }
 
             @Override
             public void onAdCompleted(InterstitialView interstitialView) {
-                if (!destroyed) {
+                if (!destroyed && !failureSent) {
                     DaroPrebidFullscreenRenderer.this.listener.videoCompleted();
                 }
             }
 
             @Override
             public void onAdClicked(InterstitialView interstitialView) {
-                if (!destroyed) {
+                if (!destroyed && !failureSent) {
                     DaroPrebidFullscreenRenderer.this.listener.click();
                 }
             }
@@ -131,6 +147,9 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         if (rewarded) {
             adConfiguration.getRewardManager().setRewardedExt(defaultVideoRewardedExt());
             adConfiguration.getRewardManager().setRewardListener(() -> {
+                if (destroyed || failureSent) {
+                    return;
+                }
                 Reward reward = adConfiguration.getRewardManager().getRewardedExt().getReward();
                 String type = reward != null ? reward.getType() : "reward";
                 int amount = reward != null ? reward.getCount() : 1;
@@ -163,6 +182,9 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         if (rewarded) {
             adConfiguration.getRewardManager().setRewardedExt(defaultHtmlRewardedExt());
             adConfiguration.getRewardManager().setRewardListener(() -> {
+                if (destroyed || failureSent) {
+                    return;
+                }
                 Reward reward = adConfiguration.getRewardManager().getRewardedExt().getReward();
                 String type = reward != null ? reward.getType() : "reward";
                 int amount = reward != null ? reward.getCount() : 1;
@@ -231,7 +253,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
 
     private void attachTrackingObserver(@NonNull AdUnitConfiguration adConfiguration) {
         adConfiguration.setDaroTrackingObserver(event -> {
-            if (!destroyed) {
+            if (!destroyed && !failureSent) {
                 listener.trackingEvent(event);
             }
         });
@@ -412,6 +434,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         startedSent = false;
         closedSent = false;
         impressionSent = false;
+        failureSent = false;
     }
 
     private enum RenderMode {

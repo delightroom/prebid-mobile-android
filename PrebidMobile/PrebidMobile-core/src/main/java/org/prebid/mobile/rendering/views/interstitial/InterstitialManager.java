@@ -154,6 +154,14 @@ public class InterstitialManager implements InterstitialManagerInterface {
                 && adViewManagerInterstitialDelegate.handleVideoInterstitialClose(onEndCardShown);
     }
 
+    public void dismissInterstitialAfterFailure() {
+        if (interstitialDialog != null) {
+            AdInterstitialDialog failedDialog = interstitialDialog;
+            interstitialDialog = null;
+            failedDialog.nullifyDialog();
+        }
+    }
+
     @Override
     public void interstitialClosed(View viewToClose) {
         LogUtil.debug(TAG, "interstitialClosed");

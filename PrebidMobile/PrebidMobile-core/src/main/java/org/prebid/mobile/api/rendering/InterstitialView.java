@@ -301,6 +301,17 @@ public class InterstitialView extends BaseAdView {
         }
     }
 
+    public void dismissInterstitialAfterFailure() {
+        if (interstitialVideo != null) {
+            InterstitialVideo failedVideo = interstitialVideo;
+            interstitialVideo = null;
+            failedVideo.hide();
+            failedVideo.cancel();
+            failedVideo.removeViews();
+        }
+        interstitialManager.dismissInterstitialAfterFailure();
+    }
+
     public void hideInterstitialVideo() {
         if (interstitialVideo != null) {
             if (interstitialVideo.isShowing()) {
