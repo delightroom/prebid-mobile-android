@@ -55,6 +55,7 @@ public class VideoCreative extends VideoCreativeProtocol
     private AsyncTask videoDownloadTask;
 
     private String preloadedVideoFilePath;
+    private boolean skipHandled;
 
     public VideoCreative(Context context,
                          @NonNull
@@ -103,6 +104,10 @@ public class VideoCreative extends VideoCreativeProtocol
 
     @Override
     public void skip() {
+        if (skipHandled) {
+            return;
+        }
+        skipHandled = true;
         LogUtil.debug(TAG, "Track 'skip' event");
         model.trackVideoEvent(VideoAdEvent.Event.AD_SKIP);
         // Send it to AdView

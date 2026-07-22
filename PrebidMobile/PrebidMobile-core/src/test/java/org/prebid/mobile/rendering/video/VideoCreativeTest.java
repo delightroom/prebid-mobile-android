@@ -154,6 +154,18 @@ public class VideoCreativeTest {
     }
 
     @Test
+    public void skipTracksAndCompletesExactlyOnce() {
+        CreativeViewListener listener = mock(CreativeViewListener.class);
+        videoCreative.setCreativeViewListener(listener);
+
+        videoCreative.skip();
+        videoCreative.skip();
+
+        verify(mockModel, times(1)).trackVideoEvent(VideoAdEvent.Event.AD_SKIP);
+        verify(listener, times(1)).creativeDidComplete(videoCreative);
+    }
+
+    @Test
     public void complete_DaroRewardedFullscreen_NotifiesRewardListener() {
         CreativeViewListener mockCreativeViewListener = mock(CreativeViewListener.class);
         Runnable mockRewardListener = mock(Runnable.class);

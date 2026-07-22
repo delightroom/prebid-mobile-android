@@ -19,6 +19,7 @@ package org.prebid.mobile.rendering.views.interstitial;
 import android.content.Context;
 import android.os.CountDownTimer;
 import android.os.Handler;
+import android.view.View;
 import android.widget.FrameLayout;
 import org.junit.Before;
 import org.junit.Test;
@@ -498,6 +499,27 @@ public class InterstitialVideoTest {
 
         verify(chromeView).showSkipAvailable();
         verify(chromeView).hideSkip();
+    }
+
+    @Test
+    public void daroSkipButton_DelegatesSkipOnlyOnce() throws Exception {
+        DaroFullscreenChromeView chromeView = mock(DaroFullscreenChromeView.class);
+        View skipButton = mock(View.class);
+        ArgumentCaptor<View.OnClickListener> listenerCaptor = ArgumentCaptor.forClass(View.OnClickListener.class);
+        WhiteBox.field(InterstitialVideo.class, "daroChromeView").set(spyInterstitialVideo, chromeView);
+        when(chromeView.getSkipButton()).thenReturn(skipButton);
+        when(skipButton.isEnabled()).thenReturn(true);
+        when(mockInterstitialManager.handleVideoInterstitialSkip(any(Runnable.class))).thenReturn(true);
+
+        spyInterstitialVideo.addSkipView();
+        verify(skipButton).setOnClickListener(listenerCaptor.capture());
+
+        listenerCaptor.getValue().onClick(skipButton);
+        listenerCaptor.getValue().onClick(skipButton);
+
+        verify(mockInterstitialManager, times(1)).handleVideoInterstitialSkip(any(Runnable.class));
+        verify(skipButton).setEnabled(false);
+        verify(spyInterstitialVideo, never()).close();
     }
 
     @Test

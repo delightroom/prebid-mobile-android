@@ -76,6 +76,11 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
         public boolean handleVideoInterstitialClose(Runnable onEndCardShown) {
             return handleDaroFullscreenVideoClose(onEndCardShown);
         }
+
+        @Override
+        public boolean handleVideoInterstitialSkip(Runnable onEndCardShown) {
+            return handleDaroFullscreenVideoSkip(onEndCardShown);
+        }
     };
 
     public AdViewManager(
@@ -455,6 +460,26 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
         return true;
     }
 
+    private boolean handleDaroFullscreenVideoSkip(Runnable onEndCardShown) {
+        if (adConfiguration == null
+                || !adConfiguration.isDaroFullscreenRenderer()
+                || transactionManager == null) {
+            return false;
+        }
+
+        AbstractCreative creative = transactionManager.getCurrentCreative();
+        if (!(creative instanceof VideoCreative)) {
+            return false;
+        }
+
+        boolean requiresRewardedEndCardHandoff = shouldSuppressDaroRewardedAutoEndCard();
+        ((VideoCreative) creative).skip();
+        if (requiresRewardedEndCardHandoff) {
+            displayNextEndCardCreative(onEndCardShown);
+        }
+        return true;
+    }
+
     private void displayNextEndCardCreative(Runnable onEndCardShown) {
         Transaction transaction = transactionManager.getCurrentTransaction();
         if (transaction == null || adView == null) {
@@ -591,6 +616,10 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
         void showInterstitial();
 
         default boolean handleVideoInterstitialClose(Runnable onEndCardShown) {
+            return false;
+        }
+
+        default boolean handleVideoInterstitialSkip(Runnable onEndCardShown) {
             return false;
         }
     }

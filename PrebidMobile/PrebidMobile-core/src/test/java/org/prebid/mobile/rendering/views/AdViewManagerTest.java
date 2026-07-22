@@ -370,6 +370,56 @@ public class AdViewManagerTest {
     }
 
     @Test
+    public void videoInterstitialSkip_DaroRewarded_TracksSkipAndAdvancesWithoutReward() throws Exception {
+        AdViewManager.AdViewManagerInterstitialDelegate delegate = captureInterstitialDelegate();
+
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setDaroFullscreenRenderer(true);
+        configuration.setRewarded(true);
+        RewardManager rewardManager = new RewardManager();
+        Runnable rewardListener = mock(Runnable.class);
+        rewardManager.setRewardListener(rewardListener);
+        configuration.setRewardManager(rewardManager);
+        mockVideoCreativeWithConfiguration(configuration);
+
+        TransactionManager mockTransactionManager = mockTransactionWithEndCard();
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, mockTransactionManager);
+        WhiteBox.field(AdViewManager.class, "adConfiguration").set(adViewManager, configuration);
+        WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, mockAdView);
+        clearInvocations(mockInterstitialManager);
+        Runnable onEndCardShown = mock(Runnable.class);
+
+        boolean handled = delegate.handleVideoInterstitialSkip(onEndCardShown);
+
+        assertTrue(handled);
+        verify(mockVideoCreative).skip();
+        verify(mockVideoCreative).destroy();
+        verify(mockTransactionManager).incrementCreativesCounter();
+        verify(rewardListener, never()).run();
+        assertFalse(rewardManager.getUserRewardedAlready());
+    }
+
+    @Test
+    public void videoInterstitialSkip_DaroInterstitial_UsesVideoCreativeSkip() throws Exception {
+        AdViewManager.AdViewManagerInterstitialDelegate delegate = captureInterstitialDelegate();
+
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setDaroFullscreenRenderer(true);
+        configuration.setRewarded(false);
+        mockVideoCreativeWithConfiguration(configuration);
+
+        TransactionManager mockTransactionManager = mockTransactionWithEndCard();
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, mockTransactionManager);
+        WhiteBox.field(AdViewManager.class, "adConfiguration").set(adViewManager, configuration);
+
+        boolean handled = delegate.handleVideoInterstitialSkip(mock(Runnable.class));
+
+        assertTrue(handled);
+        verify(mockVideoCreative).skip();
+        verify(mockTransactionManager, never()).incrementCreativesCounter();
+    }
+
+    @Test
     public void videoInterstitialClose_DaroInterstitial_AdvancesToEndCardAfterShown() throws Exception {
         AdViewManager.AdViewManagerInterstitialDelegate delegate = captureInterstitialDelegate();
 
