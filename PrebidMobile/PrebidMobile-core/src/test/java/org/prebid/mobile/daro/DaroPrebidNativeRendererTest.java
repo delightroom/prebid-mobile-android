@@ -3,6 +3,7 @@ package org.prebid.mobile.daro;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
@@ -22,11 +23,44 @@ public class DaroPrebidNativeRendererTest {
 
     @Test
     public void createNativeAd_extractsNativeVideoVastTag() {
-        DaroPrebidNativeAd ad = new DaroPrebidNativeRenderer().createNativeAd(nativeVideoAdm(), "1.23");
+        DaroPrebidNativeAd ad = new DaroPrebidNativeRenderer().createNativeAd(nativeVideoAdm(), "1.23", 5);
 
         assertNotNull(ad);
         assertNotNull(ad.getMedia());
         assertEquals("<VAST price='1.23'></VAST>", ad.getMedia().getData());
+    }
+
+    @Test
+    public void createNativeAd_doesNotExtractVideoWithoutRequestedAssetId() {
+        DaroPrebidNativeAd ad = new DaroPrebidNativeRenderer().createNativeAd(nativeVideoAdm(), "1.23");
+
+        assertNotNull(ad);
+        assertNull(ad.getMedia());
+    }
+
+    @Test
+    public void createNativeAd_ignoresMismatchedVideoAssetId() {
+        DaroPrebidNativeAd ad = new DaroPrebidNativeRenderer().createNativeAd(nativeVideoAdm(), "1.23", 9);
+
+        assertNotNull(ad);
+        assertNull(ad.getMedia());
+    }
+
+    @Test
+    public void createNativeAd_selectsRequestedVideoIndependentOfArrayOrder() {
+        DaroPrebidNativeAd ad = new DaroPrebidNativeRenderer().createNativeAd(multipleVideoAdm(), "1.23", 5);
+
+        assertNotNull(ad);
+        assertNotNull(ad.getMedia());
+        assertEquals("<VAST id='requested'></VAST>", ad.getMedia().getData());
+    }
+
+    @Test
+    public void createNativeAd_rejectsDuplicateRequestedAssetId() {
+        DaroPrebidNativeAd ad = new DaroPrebidNativeRenderer().createNativeAd(duplicateVideoAdm(), "1.23", 5);
+
+        assertNotNull(ad);
+        assertNull(ad.getMedia());
     }
 
     @Test
@@ -38,6 +72,7 @@ public class DaroPrebidNativeRendererTest {
 
         assertNotNull(view);
         assertTrue(view instanceof DaroPrebidNativeMediaView);
+        assertEquals(View.GONE, view.getVisibility());
 
         media.destroyView(view);
         media.destroyView(view);
@@ -101,6 +136,30 @@ public class DaroPrebidNativeRendererTest {
                 + "\"assets\":["
                 + "{\"id\":1,\"title\":{\"text\":\"Video Ad\"}},"
                 + "{\"id\":5,\"video\":{\"vasttag\":\"<VAST price='{AUCTION_PRICE}'></VAST>\"}}"
+                + "],"
+                + "\"link\":{\"url\":\"https://example.com/click\"}"
+                + "}"
+                + "}";
+    }
+
+    private String multipleVideoAdm() {
+        return "{"
+                + "\"native\":{"
+                + "\"assets\":["
+                + "{\"id\":9,\"video\":{\"vasttag\":\"<VAST id='other'></VAST>\"}},"
+                + "{\"id\":5,\"video\":{\"vasttag\":\"<VAST id='requested'></VAST>\"}}"
+                + "],"
+                + "\"link\":{\"url\":\"https://example.com/click\"}"
+                + "}"
+                + "}";
+    }
+
+    private String duplicateVideoAdm() {
+        return "{"
+                + "\"native\":{"
+                + "\"assets\":["
+                + "{\"id\":5,\"video\":{\"vasttag\":\"<VAST id='first'></VAST>\"}},"
+                + "{\"id\":5,\"video\":{\"vasttag\":\"<VAST id='second'></VAST>\"}}"
                 + "],"
                 + "\"link\":{\"url\":\"https://example.com/click\"}"
                 + "}"

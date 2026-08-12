@@ -78,6 +78,15 @@ public final class DaroPrebidRendering {
         @NonNull String adm,
         @Nullable String auctionPrice
     ) {
-        return createNativeRenderer().createNativeAd(adm, auctionPrice);
+        return createNativeRenderer().createNativeAd(adm, auctionPrice, null);
+    }
+
+    @Nullable
+    public static DaroPrebidNativeAd createNativeAd(
+        @NonNull String adm,
+        @Nullable String auctionPrice,
+        @Nullable Integer videoAssetId
+    ) {
+        return createNativeRenderer().createNativeAd(adm, auctionPrice, videoAssetId);
     }
 }

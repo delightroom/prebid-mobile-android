@@ -34,6 +34,7 @@ final class DaroPrebidNativeMediaView extends FrameLayout {
         super(context);
         this.vastXml = vastXml;
         this.listener = listener;
+        setVisibility(View.GONE);
     }
 
     @Override
@@ -86,7 +87,13 @@ final class DaroPrebidNativeMediaView extends FrameLayout {
                     @NonNull VideoView videoAdView,
                     AdDetails adDetails
                 ) {
+                    if (destroyed) {
+                        return;
+                    }
                     setVisibility(View.VISIBLE);
+                    if (listener != null) {
+                        listener.loaded();
+                    }
                 }
 
                 @Override
@@ -94,7 +101,13 @@ final class DaroPrebidNativeMediaView extends FrameLayout {
                     @NonNull VideoView videoAdView,
                     AdException error
                 ) {
+                    if (destroyed) {
+                        return;
+                    }
                     setVisibility(View.GONE);
+                    if (listener != null) {
+                        listener.failed();
+                    }
                 }
 
                 @Override
@@ -119,6 +132,9 @@ final class DaroPrebidNativeMediaView extends FrameLayout {
             view.loadAd(configuration, vastXml);
         } catch (AdException exception) {
             setVisibility(View.GONE);
+            if (!destroyed && listener != null) {
+                listener.failed();
+            }
         }
     }
 

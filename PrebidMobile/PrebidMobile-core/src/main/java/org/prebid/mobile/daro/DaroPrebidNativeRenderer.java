@@ -10,15 +10,32 @@ import org.json.JSONTokener;
 public final class DaroPrebidNativeRenderer {
     @Nullable
     public DaroPrebidNativeAd createNativeAd(@NonNull String adm, @Nullable String auctionPrice) {
+        return createNativeAd(adm, auctionPrice, null);
+    }
+
+    @Nullable
+    public DaroPrebidNativeAd createNativeAd(
+            @NonNull String adm,
+            @Nullable String auctionPrice,
+            @Nullable Integer videoAssetId
+    ) {
         PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(adm, auctionPrice);
         if (nativeAd == null) {
             return null;
         }
-        return new DaroPrebidNativeAd(nativeAd, extractMedia(adm, auctionPrice));
+        return new DaroPrebidNativeAd(nativeAd, extractMedia(adm, auctionPrice, videoAssetId));
     }
 
     @Nullable
-    private DaroPrebidNativeMedia extractMedia(@NonNull String adm, @Nullable String auctionPrice) {
+    private DaroPrebidNativeMedia extractMedia(
+            @NonNull String adm,
+            @Nullable String auctionPrice,
+            @Nullable Integer videoAssetId
+    ) {
+        if (videoAssetId == null) {
+            return null;
+        }
+
         String resolvedAdm = replaceAuctionPrice(adm, auctionPrice);
         JSONObject root = parseJsonObject(resolvedAdm);
         if (root == null) {
@@ -35,24 +52,29 @@ public final class DaroPrebidNativeRenderer {
             return null;
         }
 
+        JSONObject matchedAsset = null;
         for (int i = 0; i < assets.length(); i++) {
             JSONObject asset = assets.optJSONObject(i);
-            if (asset == null) {
+            if (asset == null || !asset.has("id") || asset.optInt("id") != videoAssetId) {
                 continue;
             }
-
-            JSONObject video = asset.optJSONObject("video");
-            if (video == null) {
-                continue;
+            if (matchedAsset != null) {
+                return null;
             }
-
-            String vastTag = video.optString("vasttag", "").trim();
-            if (!vastTag.isEmpty()) {
-                return new DaroPrebidNativeMedia(vastTag);
-            }
+            matchedAsset = asset;
         }
 
-        return null;
+        if (matchedAsset == null) {
+            return null;
+        }
+
+        JSONObject video = matchedAsset.optJSONObject("video");
+        if (video == null) {
+            return null;
+        }
+
+        String vastTag = video.optString("vasttag", "").trim();
+        return vastTag.isEmpty() ? null : new DaroPrebidNativeMedia(vastTag);
     }
 
     @Nullable

@@ -10,6 +10,8 @@ public final class DaroPrebidNativeMedia {
     private final String data;
 
     public interface Listener {
+        default void loaded() {}
+        default void failed() {}
         void click();
     }
 
