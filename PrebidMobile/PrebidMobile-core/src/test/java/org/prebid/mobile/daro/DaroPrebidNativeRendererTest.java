@@ -64,6 +64,30 @@ public class DaroPrebidNativeRendererTest {
     }
 
     @Test
+    public void createNativeAd_rejectsStringRequestedAssetId() {
+        DaroPrebidNativeAd ad = new DaroPrebidNativeRenderer().createNativeAd(
+                malformedVideoAssetIdAdm("\"5\""),
+                "1.23",
+                5
+        );
+
+        assertNotNull(ad);
+        assertNull(ad.getMedia());
+    }
+
+    @Test
+    public void createNativeAd_rejectsFractionalRequestedAssetId() {
+        DaroPrebidNativeAd ad = new DaroPrebidNativeRenderer().createNativeAd(
+                malformedVideoAssetIdAdm("5.9"),
+                "1.23",
+                5
+        );
+
+        assertNotNull(ad);
+        assertNull(ad.getMedia());
+    }
+
+    @Test
     public void nativeMedia_createViewAndDestroyView() {
         Activity activity = Robolectric.buildActivity(Activity.class).create().get();
         DaroPrebidNativeMedia media = new DaroPrebidNativeMedia("<VAST version='3.0'></VAST>");
@@ -160,6 +184,18 @@ public class DaroPrebidNativeRendererTest {
                 + "\"assets\":["
                 + "{\"id\":5,\"video\":{\"vasttag\":\"<VAST id='first'></VAST>\"}},"
                 + "{\"id\":5,\"video\":{\"vasttag\":\"<VAST id='second'></VAST>\"}}"
+                + "],"
+                + "\"link\":{\"url\":\"https://example.com/click\"}"
+                + "}"
+                + "}";
+    }
+
+    private String malformedVideoAssetIdAdm(String rawAssetId) {
+        return "{"
+                + "\"native\":{"
+                + "\"assets\":["
+                + "{\"id\":1,\"title\":{\"text\":\"Video Ad\"}},"
+                + "{\"id\":" + rawAssetId + ",\"video\":{\"vasttag\":\"<VAST></VAST>\"}}"
                 + "],"
                 + "\"link\":{\"url\":\"https://example.com/click\"}"
                 + "}"

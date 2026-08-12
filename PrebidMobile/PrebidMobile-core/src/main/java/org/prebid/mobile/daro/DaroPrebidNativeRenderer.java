@@ -55,7 +55,7 @@ public final class DaroPrebidNativeRenderer {
         JSONObject matchedAsset = null;
         for (int i = 0; i < assets.length(); i++) {
             JSONObject asset = assets.optJSONObject(i);
-            if (asset == null || !asset.has("id") || asset.optInt("id") != videoAssetId) {
+            if (asset == null || !hasExactIntegerId(asset, videoAssetId)) {
                 continue;
             }
             if (matchedAsset != null) {
@@ -75,6 +75,14 @@ public final class DaroPrebidNativeRenderer {
 
         String vastTag = video.optString("vasttag", "").trim();
         return vastTag.isEmpty() ? null : new DaroPrebidNativeMedia(vastTag);
+    }
+
+    private boolean hasExactIntegerId(@NonNull JSONObject asset, int expectedId) {
+        Object rawId = asset.opt("id");
+        if (!(rawId instanceof Integer) && !(rawId instanceof Long)) {
+            return false;
+        }
+        return ((Number) rawId).longValue() == expectedId;
     }
 
     @Nullable
