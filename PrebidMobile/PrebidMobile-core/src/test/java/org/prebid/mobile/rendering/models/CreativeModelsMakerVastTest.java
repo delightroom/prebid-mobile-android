@@ -52,6 +52,7 @@ import java.util.List;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 import static org.prebid.mobile.rendering.video.VideoAdEvent.Event.AD_IMPRESSION;
@@ -122,6 +123,42 @@ public class CreativeModelsMakerVastTest {
         MatcherAssert.assertThat(html, containsString("Skyline &lt;Pro&gt;"));
         MatcherAssert.assertThat(html, containsString("Focus &amp; Productivity"));
         assertFalse(html.contains("<a href=\"https://example.com/install?x=1&amp;y=2\"><img"));
+    }
+
+    @Test
+    public void makeModels_DaroClickThroughOverrideUpdatesVideoAndEndCardWithoutChangingTracking() throws Exception {
+        BaseNetworkTask.GetUrlResult adResponse = new BaseNetworkTask.GetUrlResult();
+        adResponse.responseString = ResourceUtils.convertResourceToString("vast_inline_linear.xml");
+        List<AdResponseParserBase> parsers = getVastParsers(adResponse);
+        String clickThroughOverride = "deeplink+://navigate?primaryUrl=lazada%3A%2F%2Fproduct%2F1"
+                                      + "&fallbackUrl=https%3A%2F%2Fexample.com%2Ffallback";
+        adConfiguration.setDaroClickThroughUrl(clickThroughOverride);
+
+        new CreativeModelsMakerVast(null, mockListener).makeModels(
+            adConfiguration,
+            parsers.get(0),
+            parsers.get(1)
+        );
+
+        ArgumentCaptor<CreativeModelsMaker.Result> resultCaptor =
+            ArgumentCaptor.forClass(CreativeModelsMaker.Result.class);
+        verify(mockListener).onCreativeModelReady(resultCaptor.capture());
+        VideoCreativeModel videoModel =
+            (VideoCreativeModel) resultCaptor.getValue().creativeModels.get(0);
+        CreativeModel endCardModel = resultCaptor.getValue().creativeModels.get(1);
+
+        assertEquals(clickThroughOverride, videoModel.getVastClickthroughUrl());
+        assertEquals("http://www.tremormedia.com", endCardModel.getClickUrl());
+        assertEquals("http://ad3.liverail.com/util/HTMLResource.php", endCardModel.getHtml());
+        assertEquals(clickThroughOverride, endCardModel.getTargetUrl());
+        assertEquals(
+                "http://myTrackingURL/click1",
+                videoModel.getVideoEventUrls().get(VideoAdEvent.Event.AD_CLICK).get(0)
+        );
+        assertEquals(
+                "http://www.CompanionClickTracking.com",
+                endCardModel.trackingURLs.get(TrackingEvent.Events.CLICK).get(0)
+        );
     }
 
     // To test wrappers, we use a mock server to handle the vast wrapper redirect
@@ -377,6 +414,7 @@ public class CreativeModelsMakerVastTest {
         CreativeModel endCardModel = creativeModels.get(1);
 
         assertEquals("http://www.tremormedia.com", endCardModel.getClickUrl());
+        assertNull(endCardModel.getTargetUrl());
         assertEquals(adConfiguration.isRewarded(), endCardModel.getAdConfiguration().isRewarded());
 
         HashMap<TrackingEvent.Events, ArrayList<String>> trackingURLs = endCardModel.trackingURLs;
