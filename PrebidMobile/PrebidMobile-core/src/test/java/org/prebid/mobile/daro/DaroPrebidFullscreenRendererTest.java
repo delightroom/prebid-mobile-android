@@ -23,11 +23,12 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.robolectric.Shadows.shadowOf;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.robolectric.Shadows.shadowOf;
 
 @RunWith(RobolectricTestRunner.class)
 public class DaroPrebidFullscreenRendererTest {
@@ -82,6 +83,25 @@ public class DaroPrebidFullscreenRendererTest {
 
         assertTrue(configuration.isMuted());
         assertEquals(9, configuration.getSkipDelay());
+    }
+
+    @Test
+    public void renderVast_PassesClickThroughUrlToAdConfiguration() {
+        InterstitialView interstitialView = mock(InterstitialView.class);
+        DaroPrebidFullscreenRenderer renderer = renderer(
+            interstitialView,
+            mock(DaroPrebidRenderListener.class)
+        );
+        String clickThroughUrl = "deeplink+://navigate?primaryUrl=lazada%3A%2F%2Fproduct%2F1"
+                                 + "&fallbackUrl=https%3A%2F%2Fexample.com%2Ffallback";
+
+        renderer.setClickThroughUrl(clickThroughUrl);
+        renderer.renderVast("<VAST></VAST>", 320, 480, false);
+
+        ArgumentCaptor<AdUnitConfiguration> configurationCaptor =
+            ArgumentCaptor.forClass(AdUnitConfiguration.class);
+        verify(interstitialView).loadVastAd(configurationCaptor.capture(), eq("<VAST></VAST>"));
+        assertEquals(clickThroughUrl, configurationCaptor.getValue().getDaroClickThroughUrl());
     }
 
     @Test
