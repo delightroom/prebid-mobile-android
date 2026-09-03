@@ -174,7 +174,9 @@ public class PrebidNativeAd {
                     }
                 }
 
-                ad.addLegacyImpTrackers(nativeObj, details.has("price") ? details.getString("price") : null);
+                if (!hasImpressionEventTracker(nativeObj)) {
+                    ad.addLegacyImpTrackers(nativeObj, details.has("price") ? details.getString("price") : null);
+                }
 
                 if (nativeObj.has("privacy")) {
                     String url = nativeObj.getString("privacy");
@@ -279,7 +281,9 @@ public class PrebidNativeAd {
                 }
             }
 
-            ad.addLegacyImpTrackers(nativeObj, auctionPrice);
+            if (!hasImpressionEventTracker(nativeObj)) {
+                ad.addLegacyImpTrackers(nativeObj, auctionPrice);
+            }
 
             if (nativeObj.has("privacy")) {
                 ad.setPrivacyUrl(nativeObj.getString("privacy"));
@@ -317,7 +321,7 @@ public class PrebidNativeAd {
 
     private void addLegacyImpTrackers(JSONObject nativeObj, @Nullable String auctionPrice) {
         JSONArray imptrackers = nativeObj.optJSONArray("imptrackers");
-        if (imptrackers == null || hasImpressionEventTracker(nativeObj)) {
+        if (imptrackers == null) {
             return;
         }
 
@@ -337,7 +341,7 @@ public class PrebidNativeAd {
         }
     }
 
-    private boolean hasImpressionEventTracker(JSONObject nativeObj) {
+    private static boolean hasImpressionEventTracker(JSONObject nativeObj) {
         JSONArray eventtrackers = nativeObj.optJSONArray("eventtrackers");
         if (eventtrackers == null) {
             return false;
