@@ -42,6 +42,7 @@ import java.util.List;
 public class PrebidNativeAd {
 
     private static final String TAG = "PrebidNativeAd";
+    private static final int NATIVE_EVENT_IMPRESSION = 1;
     private static final int NATIVE_EVENT_OMID = 555;
     private static final int NATIVE_METHOD_JS = 2;
     private static final String EXT_VENDOR_KEY = "vendorKey";
@@ -173,6 +174,10 @@ public class PrebidNativeAd {
                     }
                 }
 
+                if (!hasImpressionEventTracker(nativeObj)) {
+                    ad.addLegacyImpTrackers(nativeObj, details.has("price") ? details.getString("price") : null);
+                }
+
                 if (nativeObj.has("privacy")) {
                     String url = nativeObj.getString("privacy");
                     ad.setPrivacyUrl(url);
@@ -276,6 +281,10 @@ public class PrebidNativeAd {
                 }
             }
 
+            if (!hasImpressionEventTracker(nativeObj)) {
+                ad.addLegacyImpTrackers(nativeObj, auctionPrice);
+            }
+
             if (nativeObj.has("privacy")) {
                 ad.setPrivacyUrl(nativeObj.getString("privacy"));
             }
@@ -308,6 +317,43 @@ public class PrebidNativeAd {
             imp_trackers = new ArrayList<>();
         }
         imp_trackers.add(replaceAuctionPrice(eventtracker.getString("url"), auctionPrice));
+    }
+
+    private void addLegacyImpTrackers(JSONObject nativeObj, @Nullable String auctionPrice) {
+        JSONArray imptrackers = nativeObj.optJSONArray("imptrackers");
+        if (imptrackers == null) {
+            return;
+        }
+
+        for (int i = 0; i < imptrackers.length(); i++) {
+            Object element = imptrackers.opt(i);
+            if (!(element instanceof String)) {
+                continue;
+            }
+
+            String url = replaceAuctionPrice((String) element, auctionPrice);
+            if (imp_trackers == null) {
+                imp_trackers = new ArrayList<>();
+            } else if (imp_trackers.contains(url)) {
+                continue;
+            }
+            imp_trackers.add(url);
+        }
+    }
+
+    private static boolean hasImpressionEventTracker(JSONObject nativeObj) {
+        JSONArray eventtrackers = nativeObj.optJSONArray("eventtrackers");
+        if (eventtrackers == null) {
+            return false;
+        }
+
+        for (int i = 0; i < eventtrackers.length(); i++) {
+            JSONObject eventtracker = eventtrackers.optJSONObject(i);
+            if (eventtracker != null && eventtracker.optInt("event", -1) == NATIVE_EVENT_IMPRESSION) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isNativeOmidVerificationTracker(JSONObject eventtracker) {
