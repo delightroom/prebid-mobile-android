@@ -328,15 +328,27 @@ public class PrebidNativeAdTest {
     }
 
     @Test
-    public void createForExternalOwner_differentUrlsInEventtrackersAndImptrackers_registersBoth() {
+    public void createForExternalOwner_impressionEventtrackerPresent_ignoresImptrackers() {
         PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(admWithTrackers(
                 "[{\"event\":1,\"method\":1,\"url\":\"https://buyer.example/imp\"}]",
                 "[\"https://legacy.example/imp\"]"
         ));
 
         ArrayList<String> admImpressionTrackers = reflectAdmImpressionTrackers(nativeAd);
-        assertEquals(2, admImpressionTrackers.size());
+        assertEquals(1, admImpressionTrackers.size());
         assertEquals("https://buyer.example/imp", admImpressionTrackers.get(0));
+    }
+
+    @Test
+    public void createForExternalOwner_nonImpressionEventtrackersOnly_registersImptrackers() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(admWithTrackers(
+                "[{\"event\":2,\"method\":1,\"url\":\"https://buyer.example/viewable\"}]",
+                "[\"https://legacy.example/imp\"]"
+        ));
+
+        ArrayList<String> admImpressionTrackers = reflectAdmImpressionTrackers(nativeAd);
+        assertEquals(2, admImpressionTrackers.size());
+        assertEquals("https://buyer.example/viewable", admImpressionTrackers.get(0));
         assertEquals("https://legacy.example/imp", admImpressionTrackers.get(1));
     }
 
@@ -373,10 +385,10 @@ public class PrebidNativeAdTest {
     }
 
     @Test
-    public void createForExternalOwner_imptrackers_dedupesAfterMacroSubstitution() {
+    public void createForExternalOwner_impressionEventtrackerPresent_ignoresImptrackers_withMacro() {
         PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(admWithTrackers(
                 "[{\"event\":1,\"method\":1,\"url\":\"https://buyer.example/imp?price=1.23\"}]",
-                "[\"https://buyer.example/imp?price={AUCTION_PRICE}\"]"
+                "[\"https://legacy.example/imp?price={AUCTION_PRICE}\"]"
         ), "1.23");
 
         ArrayList<String> admImpressionTrackers = reflectAdmImpressionTrackers(nativeAd);
@@ -425,14 +437,26 @@ public class PrebidNativeAdTest {
         ));
 
         ArrayList<String> admImpressionTrackers = reflectAdmImpressionTrackers(nativeAd);
-        assertEquals(2, admImpressionTrackers.size());
+        assertEquals(1, admImpressionTrackers.size());
         assertEquals("https://buyer.example/imp", admImpressionTrackers.get(0));
-        assertEquals("https://legacy.example/imp", admImpressionTrackers.get(1));
 
         ArrayList<OmAdSessionManager.NativeDisplayVerificationResource> nativeOmidResources =
                 reflectNativeOmidVerificationResources(nativeAd);
         assertEquals(1, nativeOmidResources.size());
         assertEquals("https://measurement.example/omid.js", Reflection.getFieldOf(nativeOmidResources.get(0), "omidJsUrl"));
+    }
+
+    @Test
+    public void createForExternalOwner_omidVerificationTrackerOnly_registersImptrackers() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(admWithTrackers(
+                "[{\"event\":555,\"method\":2,\"url\":\"https://measurement.example/omid.js\","
+                        + "\"ext\":{\"vendorKey\":\"measurement-vendor\",\"verification_parameters\":\"verification-data\"}}]",
+                "[\"https://legacy.example/imp\"]"
+        ));
+
+        ArrayList<String> admImpressionTrackers = reflectAdmImpressionTrackers(nativeAd);
+        assertEquals(1, admImpressionTrackers.size());
+        assertEquals("https://legacy.example/imp", admImpressionTrackers.get(0));
     }
 
     @Test
@@ -454,16 +478,15 @@ public class PrebidNativeAdTest {
     }
 
     @Test
-    public void create_imptrackers_substitutesMacro_andDedupesAgainstEventtrackers() throws JSONException {
+    public void create_impressionEventtrackerPresent_ignoresImptrackers() throws JSONException {
         PrebidNativeAd nativeAd = nativeAdFromBid(admWithTrackers(
                 "[{\"event\":1,\"method\":1,\"url\":\"https://buyer.example/imp?price={AUCTION_PRICE}\"}]",
-                "[\"https://buyer.example/imp?price=1.23\",\"https://legacy.example/imp?price={AUCTION_PRICE}\"]"
+                "[\"https://legacy.example/imp?price={AUCTION_PRICE}\"]"
         ), 1.23);
 
         ArrayList<String> admImpressionTrackers = reflectAdmImpressionTrackers(nativeAd);
-        assertEquals(2, admImpressionTrackers.size());
+        assertEquals(1, admImpressionTrackers.size());
         assertEquals("https://buyer.example/imp?price=1.23", admImpressionTrackers.get(0));
-        assertEquals("https://legacy.example/imp?price=1.23", admImpressionTrackers.get(1));
     }
 
     private PrebidNativeAd nativeAdFromFile(String path) {

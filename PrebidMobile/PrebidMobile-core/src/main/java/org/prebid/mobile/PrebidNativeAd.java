@@ -42,6 +42,7 @@ import java.util.List;
 public class PrebidNativeAd {
 
     private static final String TAG = "PrebidNativeAd";
+    private static final int NATIVE_EVENT_IMPRESSION = 1;
     private static final int NATIVE_EVENT_OMID = 555;
     private static final int NATIVE_METHOD_JS = 2;
     private static final String EXT_VENDOR_KEY = "vendorKey";
@@ -316,7 +317,7 @@ public class PrebidNativeAd {
 
     private void addLegacyImpTrackers(JSONObject nativeObj, @Nullable String auctionPrice) {
         JSONArray imptrackers = nativeObj.optJSONArray("imptrackers");
-        if (imptrackers == null) {
+        if (imptrackers == null || hasImpressionEventTracker(nativeObj)) {
             return;
         }
 
@@ -334,6 +335,21 @@ public class PrebidNativeAd {
             }
             imp_trackers.add(url);
         }
+    }
+
+    private boolean hasImpressionEventTracker(JSONObject nativeObj) {
+        JSONArray eventtrackers = nativeObj.optJSONArray("eventtrackers");
+        if (eventtrackers == null) {
+            return false;
+        }
+
+        for (int i = 0; i < eventtrackers.length(); i++) {
+            JSONObject eventtracker = eventtrackers.optJSONObject(i);
+            if (eventtracker != null && eventtracker.optInt("event", -1) == NATIVE_EVENT_IMPRESSION) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isNativeOmidVerificationTracker(JSONObject eventtracker) {
