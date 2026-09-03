@@ -173,6 +173,8 @@ public class PrebidNativeAd {
                     }
                 }
 
+                ad.addLegacyImpTrackers(nativeObj, details.has("price") ? details.getString("price") : null);
+
                 if (nativeObj.has("privacy")) {
                     String url = nativeObj.getString("privacy");
                     ad.setPrivacyUrl(url);
@@ -276,6 +278,8 @@ public class PrebidNativeAd {
                 }
             }
 
+            ad.addLegacyImpTrackers(nativeObj, auctionPrice);
+
             if (nativeObj.has("privacy")) {
                 ad.setPrivacyUrl(nativeObj.getString("privacy"));
             }
@@ -308,6 +312,28 @@ public class PrebidNativeAd {
             imp_trackers = new ArrayList<>();
         }
         imp_trackers.add(replaceAuctionPrice(eventtracker.getString("url"), auctionPrice));
+    }
+
+    private void addLegacyImpTrackers(JSONObject nativeObj, @Nullable String auctionPrice) {
+        JSONArray imptrackers = nativeObj.optJSONArray("imptrackers");
+        if (imptrackers == null) {
+            return;
+        }
+
+        for (int i = 0; i < imptrackers.length(); i++) {
+            Object element = imptrackers.opt(i);
+            if (!(element instanceof String)) {
+                continue;
+            }
+
+            String url = replaceAuctionPrice((String) element, auctionPrice);
+            if (imp_trackers == null) {
+                imp_trackers = new ArrayList<>();
+            } else if (imp_trackers.contains(url)) {
+                continue;
+            }
+            imp_trackers.add(url);
+        }
     }
 
     private boolean isNativeOmidVerificationTracker(JSONObject eventtracker) {

@@ -16,6 +16,8 @@ import android.app.Application;
 import android.content.Context;
 import android.view.View;
 
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.prebid.mobile.rendering.session.manager.OmAdSessionManager;
@@ -289,10 +291,190 @@ public class PrebidNativeAdTest {
         assertEquals("https://buyer.example/imp?price={AUCTION_PRICE}", reflectAdmImpressionTrackers(nativeAd).get(0));
     }
 
+    @Test
+    public void createForExternalOwner_imptrackersOnly_registersImpressionTrackers() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(admWithTrackers(
+                null,
+                "[\"https://legacy.example/imp1\",\"https://legacy.example/imp2\"]"
+        ));
+
+        ArrayList<String> admImpressionTrackers = reflectAdmImpressionTrackers(nativeAd);
+        assertNotNull(admImpressionTrackers);
+        assertEquals(2, admImpressionTrackers.size());
+        assertEquals("https://legacy.example/imp1", admImpressionTrackers.get(0));
+        assertEquals("https://legacy.example/imp2", admImpressionTrackers.get(1));
+
+        assertTrue(nativeAd.registerView(createViewMock(), mock(List.class), mock(PrebidNativeAdEventListener.class)));
+
+        ArrayList<ImpressionTracker> trackerObjects = reflectImpressionTrackerObjects(nativeAd);
+        assertEquals(2, trackerObjects.size());
+        assertEquals("https://legacy.example/imp1", reflectImpressionTrackerUrl(trackerObjects.get(0)));
+        assertEquals("https://legacy.example/imp2", reflectImpressionTrackerUrl(trackerObjects.get(1)));
+    }
+
+    @Test
+    public void createForExternalOwner_sameUrlInEventtrackersAndImptrackers_registersOnce() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(admWithTrackers(
+                "[{\"event\":1,\"method\":1,\"url\":\"https://buyer.example/imp\"}]",
+                "[\"https://buyer.example/imp\"]"
+        ));
+
+        ArrayList<String> admImpressionTrackers = reflectAdmImpressionTrackers(nativeAd);
+        assertEquals(1, admImpressionTrackers.size());
+        assertEquals("https://buyer.example/imp", admImpressionTrackers.get(0));
+
+        assertTrue(nativeAd.registerView(createViewMock(), mock(List.class), mock(PrebidNativeAdEventListener.class)));
+        assertEquals(1, reflectImpressionTrackerObjects(nativeAd).size());
+    }
+
+    @Test
+    public void createForExternalOwner_differentUrlsInEventtrackersAndImptrackers_registersBoth() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(admWithTrackers(
+                "[{\"event\":1,\"method\":1,\"url\":\"https://buyer.example/imp\"}]",
+                "[\"https://legacy.example/imp\"]"
+        ));
+
+        ArrayList<String> admImpressionTrackers = reflectAdmImpressionTrackers(nativeAd);
+        assertEquals(2, admImpressionTrackers.size());
+        assertEquals("https://buyer.example/imp", admImpressionTrackers.get(0));
+        assertEquals("https://legacy.example/imp", admImpressionTrackers.get(1));
+    }
+
+    @Test
+    public void createForExternalOwner_duplicateUrlsWithinImptrackers_registersOnce() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(admWithTrackers(
+                null,
+                "[\"https://legacy.example/imp\",\"https://legacy.example/imp\"]"
+        ));
+
+        ArrayList<String> admImpressionTrackers = reflectAdmImpressionTrackers(nativeAd);
+        assertEquals(1, admImpressionTrackers.size());
+        assertEquals("https://legacy.example/imp", admImpressionTrackers.get(0));
+    }
+
+    @Test
+    public void createForExternalOwner_imptrackers_withAuctionPrice_substitutesMacro() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(admWithTrackers(
+                null,
+                "[\"https://legacy.example/imp?price={AUCTION_PRICE}\"]"
+        ), "1.23");
+
+        assertEquals("https://legacy.example/imp?price=1.23", reflectAdmImpressionTrackers(nativeAd).get(0));
+    }
+
+    @Test
+    public void createForExternalOwner_imptrackers_withoutAuctionPrice_leavesMacroRaw() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(admWithTrackers(
+                null,
+                "[\"https://legacy.example/imp?price={AUCTION_PRICE}\"]"
+        ));
+
+        assertEquals("https://legacy.example/imp?price={AUCTION_PRICE}", reflectAdmImpressionTrackers(nativeAd).get(0));
+    }
+
+    @Test
+    public void createForExternalOwner_imptrackers_dedupesAfterMacroSubstitution() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(admWithTrackers(
+                "[{\"event\":1,\"method\":1,\"url\":\"https://buyer.example/imp?price=1.23\"}]",
+                "[\"https://buyer.example/imp?price={AUCTION_PRICE}\"]"
+        ), "1.23");
+
+        ArrayList<String> admImpressionTrackers = reflectAdmImpressionTrackers(nativeAd);
+        assertEquals(1, admImpressionTrackers.size());
+        assertEquals("https://buyer.example/imp?price=1.23", admImpressionTrackers.get(0));
+    }
+
+    @Test
+    public void createForExternalOwner_imptrackersEmptyArray_leavesImpressionTrackersNull() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(admWithTrackers(null, "[]"));
+
+        assertNotNull(nativeAd);
+        assertNull(reflectAdmImpressionTrackers(nativeAd));
+    }
+
+    @Test
+    public void createForExternalOwner_imptrackersNotArray_ignored() {
+        PrebidNativeAd asString = PrebidNativeAd.createForExternalOwner(admWithTrackers(null, "\"https://legacy.example/imp\""));
+        PrebidNativeAd asObject = PrebidNativeAd.createForExternalOwner(admWithTrackers(null, "{\"url\":\"https://legacy.example/imp\"}"));
+
+        assertNotNull(asString);
+        assertNotNull(asObject);
+        assertNull(reflectAdmImpressionTrackers(asString));
+        assertNull(reflectAdmImpressionTrackers(asObject));
+    }
+
+    @Test
+    public void createForExternalOwner_imptrackersNonStringElements_skipped() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(admWithTrackers(
+                null,
+                "[123,null,{\"url\":\"https://legacy.example/object\"},\"https://legacy.example/imp\"]"
+        ));
+
+        ArrayList<String> admImpressionTrackers = reflectAdmImpressionTrackers(nativeAd);
+        assertEquals(1, admImpressionTrackers.size());
+        assertEquals("https://legacy.example/imp", admImpressionTrackers.get(0));
+    }
+
+    @Test
+    public void createForExternalOwner_omidVerificationTracker_notMergedWithImptrackers() {
+        PrebidNativeAd nativeAd = PrebidNativeAd.createForExternalOwner(admWithTrackers(
+                "[{\"event\":1,\"method\":1,\"url\":\"https://buyer.example/imp\"},"
+                        + "{\"event\":555,\"method\":2,\"url\":\"https://measurement.example/omid.js\","
+                        + "\"ext\":{\"vendorKey\":\"measurement-vendor\",\"verification_parameters\":\"verification-data\"}}]",
+                "[\"https://legacy.example/imp\"]"
+        ));
+
+        ArrayList<String> admImpressionTrackers = reflectAdmImpressionTrackers(nativeAd);
+        assertEquals(2, admImpressionTrackers.size());
+        assertEquals("https://buyer.example/imp", admImpressionTrackers.get(0));
+        assertEquals("https://legacy.example/imp", admImpressionTrackers.get(1));
+
+        ArrayList<OmAdSessionManager.NativeDisplayVerificationResource> nativeOmidResources =
+                reflectNativeOmidVerificationResources(nativeAd);
+        assertEquals(1, nativeOmidResources.size());
+        assertEquals("https://measurement.example/omid.js", Reflection.getFieldOf(nativeOmidResources.get(0), "omidJsUrl"));
+    }
+
+    @Test
+    public void create_imptrackersOnly_registersImpressionTrackers() throws JSONException {
+        PrebidNativeAd nativeAd = nativeAdFromBid(admWithTrackers(null, "[\"https://legacy.example/imp\"]"), 1.23);
+
+        assertNotNull(nativeAd);
+        assertNull(nativeAd.getImpEvent());
+
+        ArrayList<String> admImpressionTrackers = reflectAdmImpressionTrackers(nativeAd);
+        assertEquals(1, admImpressionTrackers.size());
+        assertEquals("https://legacy.example/imp", admImpressionTrackers.get(0));
+
+        assertTrue(nativeAd.registerView(createViewMock(), mock(List.class), mock(PrebidNativeAdEventListener.class)));
+
+        ArrayList<ImpressionTracker> trackerObjects = reflectImpressionTrackerObjects(nativeAd);
+        assertEquals(1, trackerObjects.size());
+        assertEquals("https://legacy.example/imp", reflectImpressionTrackerUrl(trackerObjects.get(0)));
+    }
+
+    @Test
+    public void create_imptrackers_substitutesMacro_andDedupesAgainstEventtrackers() throws JSONException {
+        PrebidNativeAd nativeAd = nativeAdFromBid(admWithTrackers(
+                "[{\"event\":1,\"method\":1,\"url\":\"https://buyer.example/imp?price={AUCTION_PRICE}\"}]",
+                "[\"https://buyer.example/imp?price=1.23\",\"https://legacy.example/imp?price={AUCTION_PRICE}\"]"
+        ), 1.23);
+
+        ArrayList<String> admImpressionTrackers = reflectAdmImpressionTrackers(nativeAd);
+        assertEquals(2, admImpressionTrackers.size());
+        assertEquals("https://buyer.example/imp?price=1.23", admImpressionTrackers.get(0));
+        assertEquals("https://legacy.example/imp?price=1.23", admImpressionTrackers.get(1));
+    }
+
     private PrebidNativeAd nativeAdFromFile(String path) {
         String resource = ResourceUtils.convertResourceToString(path);
         String cacheId = CacheManager.save(resource);
         return PrebidNativeAd.create(cacheId);
+    }
+
+    private PrebidNativeAd nativeAdFromBid(String adm, double price) throws JSONException {
+        String bid = new JSONObject().put("price", price).put("adm", adm).toString();
+        return PrebidNativeAd.create(CacheManager.save(bid));
     }
 
     private View createViewMock() {
@@ -370,5 +552,17 @@ public class PrebidNativeAdTest {
                 + "\"ext\":{\"vendorKey\":\"measurement-vendor\",\"verification_parameters\":\"verification-data\"}}"
                 + "],"
                 + "\"link\":{\"url\":\"https://example.com/click\"}}";
+    }
+
+    private String admWithTrackers(String eventtrackersJson, String imptrackersJson) {
+        StringBuilder adm = new StringBuilder("{\"assets\":[{\"title\":{\"text\":\"External Title\"}}],")
+                .append("\"link\":{\"url\":\"https://example.com/click\"}");
+        if (eventtrackersJson != null) {
+            adm.append(",\"eventtrackers\":").append(eventtrackersJson);
+        }
+        if (imptrackersJson != null) {
+            adm.append(",\"imptrackers\":").append(imptrackersJson);
+        }
+        return adm.append("}").toString();
     }
 }
