@@ -44,6 +44,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
     private RenderMode renderMode = RenderMode.VIDEO;
     private int skipDelaySeconds = DEFAULT_DARO_SKIP_DELAY_SECONDS;
     private boolean initialMuted = false;
+    @Nullable private String clickThroughUrl;
 
     public DaroPrebidFullscreenRenderer(
         @NonNull Context context,
@@ -135,6 +136,10 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         initialMuted = muted;
     }
 
+    public void setClickThroughUrl(@Nullable String url) {
+        clickThroughUrl = url;
+    }
+
     public void renderVast(@NonNull String vastXml, int width, int height, boolean rewarded) {
         if (destroyed) {
             return;
@@ -142,6 +147,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         resetRenderState(RenderMode.VIDEO);
 
         AdUnitConfiguration adConfiguration = createVastAdConfiguration(width, height, rewarded, skipDelaySeconds, initialMuted);
+        adConfiguration.setDaroClickThroughUrl(clickThroughUrl);
         attachTrackingObserver(adConfiguration);
         adConfiguration.getRewardManager().clear();
         if (rewarded) {

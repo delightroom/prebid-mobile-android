@@ -81,6 +81,8 @@ public class AdUnitConfiguration {
     private RewardManager rewardManager = new RewardManager();
     @Nullable
     private DaroPrebidTrackingObserver daroTrackingObserver;
+    @Nullable
+    private String daroClickThroughUrl;
 
     private final EnumSet<AdFormat> adFormats = EnumSet.noneOf(AdFormat.class);
     private final HashSet<AdSize> adSizes = new HashSet<>();
@@ -329,6 +331,15 @@ public class AdUnitConfiguration {
     @Nullable
     public DaroPrebidTrackingObserver getDaroTrackingObserver() {
         return daroTrackingObserver;
+    }
+
+    public void setDaroClickThroughUrl(@Nullable String daroClickThroughUrl) {
+        this.daroClickThroughUrl = daroClickThroughUrl;
+    }
+
+    @Nullable
+    public String getDaroClickThroughUrl() {
+        return daroClickThroughUrl;
     }
 
     public void setCloseButtonArea(@FloatRange(from = 0, to = 1.0) double closeButtonArea) {

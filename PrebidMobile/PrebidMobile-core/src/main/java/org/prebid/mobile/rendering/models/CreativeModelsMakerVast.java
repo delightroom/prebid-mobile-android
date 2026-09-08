@@ -112,6 +112,9 @@ public class CreativeModelsMakerVast extends CreativeModelsMaker {
             rootVastParser.getClickTrackings(rootVastParser, 0);
             final String videoErrorUrl = rootVastParser.getError(rootVastParser, 0);
             final String vastClickThroughUrl = rootVastParser.getClickThroughUrl(rootVastParser, 0);
+            final String effectiveClickThroughUrl = Utils.isNotBlank(adConfiguration.getDaroClickThroughUrl())
+                    ? adConfiguration.getDaroClickThroughUrl()
+                    : vastClickThroughUrl;
             final String videoDuration = latestVastWrapperParser.getVideoDuration(latestVastWrapperParser, 0);
             final String skipOffset = latestVastWrapperParser.getSkipOffset(latestVastWrapperParser, 0);
             final AdVerifications adVerifications = rootVastParser.getAdVerification(latestVastWrapperParser, 0);
@@ -161,7 +164,7 @@ public class CreativeModelsMakerVast extends CreativeModelsMaker {
             videoModel.getVideoEventUrls().put(VideoAdEvent.Event.AD_ERROR, errorUrls);
 
             //put click through url into element
-            videoModel.setVastClickthroughUrl(vastClickThroughUrl);
+            videoModel.setVastClickthroughUrl(effectiveClickThroughUrl);
 
             result.creativeModels = new ArrayList<>();
             result.creativeModels.add(videoModel);
@@ -197,6 +200,9 @@ public class CreativeModelsMakerVast extends CreativeModelsMaker {
                 }
 
                 endCardModel.setClickUrl(getCompanionClickThroughUrl(companionAd, vastClickThroughUrl));
+                if (Utils.isNotBlank(adConfiguration.getDaroClickThroughUrl())) {
+                    endCardModel.setTargetUrl(effectiveClickThroughUrl);
+                }
 
                 if (companionAd.getCompanionClickTracking() != null) {
                     String clickTrackingUrl = companionAd.getCompanionClickTracking().getValue();
