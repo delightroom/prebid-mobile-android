@@ -411,6 +411,11 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
     }
 
     private void handleVideoCreativeComplete(AbstractCreative creative) {
+        if (adView instanceof org.prebid.mobile.api.rendering.VideoView
+            && ((org.prebid.mobile.api.rendering.VideoView) adView).isPrepareStillFrameEnabled()) {
+            adViewListener.videoCreativePlaybackFinished();
+            return;
+        }
         Transaction transaction = transactionManager.getCurrentTransaction();
         boolean isBuiltInVideo = creative.isBuiltInVideo();
         if (shouldSuppressDaroRewardedAutoEndCard()) {
@@ -538,6 +543,17 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
     private void displayCreative(View creativeView) {
         currentCreative.display();
         adViewListener.viewReadyForImmediateDisplay(creativeView);
+    }
+
+    public void prepareVideoStillFrame(Runnable onReady) {
+        View view = currentCreative == null ? null : currentCreative.getCreativeView();
+        if (!(view instanceof VideoCreativeView)) {
+            adViewListener.failedToLoad(new AdException(AdException.INTERNAL_ERROR, "Missing video creative"));
+            return;
+        }
+        // Attach the surface before preparing; display() starts playback and tracking.
+        adViewListener.viewReadyForImmediateDisplay(view);
+        ((VideoCreativeView) view).prepareStillFrame(onReady);
     }
 
     private boolean isCreativeResolved() {

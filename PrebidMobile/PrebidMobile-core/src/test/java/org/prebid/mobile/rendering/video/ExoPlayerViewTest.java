@@ -117,6 +117,72 @@ public class ExoPlayerViewTest {
     }
 
     @Test
+    public void prepareStillFrame_DoesNotPlayOrTrackUntilExplicitStart() throws Exception {
+        useRealViewForPlayerCallbacks();
+        Runnable ready = mock(Runnable.class);
+        exoPlayerView.setVideoUri(Uri.EMPTY);
+        exoPlayerView.prepareStillFrame(ready);
+        Player.Listener events = (Player.Listener) WhiteBox.field(ExoPlayerView.class, "eventListener").get(exoPlayerView);
+
+        events.onPlaybackStateChanged(Player.STATE_READY);
+        exoPlayerView.pause();
+        exoPlayerView.resume();
+        verify(mockSimpleExoPlayer).setVolume(0);
+        verify(mockSimpleExoPlayer, never()).setPlayWhenReady(true);
+        verifyNoInteractions(mockVideoCreative, ready);
+
+        events.onRenderedFirstFrame();
+        events.onRenderedFirstFrame();
+        verify(ready, times(1)).run();
+        verifyNoInteractions(mockVideoCreative);
+
+        exoPlayerView.start(0);
+        verify(mockVideoCreative).onEvent(VideoAdEvent.Event.AD_START);
+    }
+
+    @Test
+    public void prepareStillFrameWithoutMedia_ReportsFailure() throws Exception {
+        useRealViewForPlayerCallbacks();
+        Runnable ready = mock(Runnable.class);
+        exoPlayerView.prepareStillFrame(ready);
+
+        verify(mockVideoCreative).onFailure(any());
+        verifyNoInteractions(mockSimpleExoPlayer, ready);
+    }
+
+    @Test
+    public void destroyDuringStillFramePreparation_DropsReadinessCallback() throws Exception {
+        useRealViewForPlayerCallbacks();
+        Runnable ready = mock(Runnable.class);
+        exoPlayerView.setVideoUri(Uri.EMPTY);
+        exoPlayerView.prepareStillFrame(ready);
+        Player.Listener events = (Player.Listener) WhiteBox.field(ExoPlayerView.class, "eventListener").get(exoPlayerView);
+
+        exoPlayerView.destroy();
+        events.onRenderedFirstFrame();
+
+        verifyNoInteractions(ready);
+    }
+
+    @Test
+    public void preparedBannerStaysPausedAcrossBufferReadiness() throws Exception {
+        useRealViewForPlayerCallbacks();
+        exoPlayerView.setVideoUri(Uri.EMPTY);
+        exoPlayerView.prepareStillFrame(() -> {});
+        exoPlayerView.start(0);
+        exoPlayerView.pause();
+        Player.Listener events = (Player.Listener) WhiteBox.field(ExoPlayerView.class, "eventListener").get(exoPlayerView);
+        events.onPlaybackStateChanged(Player.STATE_READY);
+        verify(mockSimpleExoPlayer, never()).setPlayWhenReady(true);
+        verify(mockSimpleExoPlayer, never()).stop();
+    }
+
+    private void useRealViewForPlayerCallbacks() throws Exception {
+        exoPlayerView = new ExoPlayerView(exoPlayerView.getContext(), mockVideoCreative);
+        WhiteBox.field(ExoPlayerView.class, "player").set(exoPlayerView, mockSimpleExoPlayer);
+    }
+
+    @Test
     public void setVastVideoDuration() {
         exoPlayerView.setVastVideoDuration(1000L);
         verify(exoPlayerView).setVastVideoDuration(1000L);

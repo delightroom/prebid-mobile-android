@@ -1,6 +1,12 @@
 package org.prebid.mobile.daro;
 
 import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkRequest;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
 import androidx.annotation.NonNull;
@@ -31,6 +37,28 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
     private VideoView videoView;
     private boolean destroyed;
     private boolean impressionSent;
+    private boolean videoFailed;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private ConnectivityManager connectivityManager;
+    private ConnectivityManager.NetworkCallback networkCallback;
+    private final Runnable preparationTimeout = this::failPreparation;
+
+    private void failPreparation() {
+        failVideo(new AdException(AdException.INTERNAL_ERROR, "Video first frame timed out"));
+    }
+
+    private void failVideo(AdException error) {
+        if (destroyed || videoFailed) return;
+        videoFailed = true;
+        handler.removeCallbacks(preparationTimeout);
+        stopObservingNetwork();
+        if (videoView != null) {
+            videoView.destroy();
+            container.removeView(videoView);
+            videoView = null;
+        }
+        listener.renderFailed(error);
+    }
 
     public DaroPrebidBannerRenderer(
         @NonNull Context context,
@@ -149,16 +177,15 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
             view.setVideoViewListener(new VideoViewListener() {
                 @Override
                 public void onLoaded(@NonNull VideoView videoAdView, AdDetails adDetails) {
-                    if (!destroyed) {
+                    if (!destroyed && !videoFailed) {
+                        handler.removeCallbacks(preparationTimeout);
                         listener.renderSuccess();
                     }
                 }
 
                 @Override
                 public void onLoadFailed(@NonNull VideoView videoAdView, AdException error) {
-                    if (!destroyed) {
-                        listener.renderFailed(error);
-                    }
+                    failVideo(error);
                 }
 
                 @Override
@@ -174,6 +201,8 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
                 }
             });
             view.setAutoPlay(true);
+            view.setPrepareStillFrame(true);
+            view.setPlaybackAllowed(false);
             view.setVideoPlayerClick(true);
             view.setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -183,9 +212,11 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
             container.removeAllViews();
             container.addView(view);
             videoView = view;
+            observeNetwork();
+            handler.postDelayed(preparationTimeout, 30000);
             view.loadAd(adConfiguration, vastXml);
         } catch (AdException exception) {
-            listener.renderFailed(exception);
+            failVideo(exception);
         }
     }
 
@@ -195,6 +226,8 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
             return;
         }
         destroyed = true;
+        handler.removeCallbacksAndMessages(null);
+        stopObservingNetwork();
         if (videoView != null) {
             videoView.destroy();
             videoView = null;
@@ -211,5 +244,41 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
         }
         impressionSent = true;
         listener.impression();
+    }
+
+    private void observeNetwork() {
+        connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (connectivityManager == null) return;
+        networkCallback = new ConnectivityManager.NetworkCallback() {
+            @Override public void onCapabilitiesChanged(Network network, NetworkCapabilities capabilities) {
+                handler.post(() -> updateNetwork());
+            }
+            @Override public void onLost(Network network) {
+                handler.post(() -> updateNetwork());
+            }
+        };
+        try {
+            connectivityManager.registerNetworkCallback(new NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(), networkCallback);
+            updateNetwork();
+        } catch (SecurityException exception) {
+            networkCallback = null;
+            // Without network-state permission the creative remains a still frame.
+        }
+    }
+
+    private void stopObservingNetwork() {
+        if (connectivityManager != null && networkCallback != null) {
+            connectivityManager.unregisterNetworkCallback(networkCallback);
+            networkCallback = null;
+        }
+    }
+
+    private void updateNetwork() {
+        if (destroyed || videoView == null) return;
+        NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
+        boolean wifi = capabilities != null && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+            && !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR);
+        videoView.setPlaybackAllowed(wifi);
     }
 }

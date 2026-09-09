@@ -245,6 +245,24 @@ public class AdViewManagerTest {
     }
 
     @Test
+    public void creativeDidComplete_InBannerStillFrame_DoesNotOpenCompanionFullscreen() throws Exception {
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        mockVideoCreativeWithConfiguration(configuration);
+        TransactionManager transactions = mockTransactionWithEndCard();
+        VideoView banner = mock(VideoView.class);
+        when(banner.isPrepareStillFrameEnabled()).thenReturn(true);
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, transactions);
+        WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, banner);
+
+        adViewManager.creativeDidComplete(mockVideoCreative);
+
+        verify(transactions, never()).incrementCreativesCounter();
+        verify(mockInterstitialManager, never()).displayAdViewInInterstitial(any(), any());
+        verify(mockInterstitialManager, never()).displayAdViewInInterstitial(any(), any(), any());
+        verify(mockAdViewListener).videoCreativePlaybackFinished();
+    }
+
+    @Test
     public void creativeDidComplete_DaroRewardedWithEndCard_DoesNotAutoAdvanceOrReward() throws Exception {
         AdUnitConfiguration configuration = new AdUnitConfiguration();
         configuration.setDaroFullscreenRenderer(true);
