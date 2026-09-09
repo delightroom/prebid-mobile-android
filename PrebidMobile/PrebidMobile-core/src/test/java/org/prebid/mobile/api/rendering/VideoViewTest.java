@@ -89,6 +89,15 @@ public class VideoViewTest {
     }
 
     @Test
+    public void inBannerLoadKeepsCreativeMutedAfterInitialVolumeIsApplied() {
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        videoView.setPrepareStillFrame(true);
+        videoView.loadAd(configuration, "<VAST/>");
+        org.junit.Assert.assertTrue(configuration.isMuted());
+        verify(mockAdViewManager).loadVideoTransaction(configuration, "<VAST/>");
+    }
+
+    @Test
     public void inBannerNetworkPolicyGatesEveryPlaybackEntry() {
         videoView.setPrepareStillFrame(true);
         videoView.setPlaybackAllowed(false);

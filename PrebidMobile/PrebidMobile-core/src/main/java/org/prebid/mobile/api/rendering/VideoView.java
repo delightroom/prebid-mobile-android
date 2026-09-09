@@ -165,6 +165,7 @@ public class VideoView extends BaseAdView {
         AdUnitConfiguration adConfiguration,
         String vastXml
     ) {
+        if (prepareStillFrame) adConfiguration.setIsMuted(true);
         stopVisibilityTracking();
         changeState(State.UNDEFINED);
 

@@ -5,6 +5,7 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
@@ -251,15 +252,22 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
         if (connectivityManager == null) return;
         networkCallback = new ConnectivityManager.NetworkCallback() {
             @Override public void onCapabilitiesChanged(Network network, NetworkCapabilities capabilities) {
-                handler.post(() -> updateNetwork());
+                handler.post(() -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) applyNetworkCapabilities(capabilities);
+                    else updateNetwork();
+                });
             }
             @Override public void onLost(Network network) {
-                handler.post(() -> updateNetwork());
+                handler.post(() -> applyNetworkCapabilities(null));
             }
         };
         try {
-            connectivityManager.registerNetworkCallback(new NetworkRequest.Builder()
-                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(), networkCallback);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                connectivityManager.registerDefaultNetworkCallback(networkCallback);
+            } else {
+                connectivityManager.registerNetworkCallback(new NetworkRequest.Builder()
+                    .addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build(), networkCallback);
+            }
             updateNetwork();
         } catch (SecurityException exception) {
             networkCallback = null;
@@ -276,7 +284,11 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
 
     private void updateNetwork() {
         if (destroyed || videoView == null) return;
-        NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
+        applyNetworkCapabilities(connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork()));
+    }
+
+    private void applyNetworkCapabilities(NetworkCapabilities capabilities) {
+        if (destroyed || videoView == null) return;
         boolean wifi = capabilities != null && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
             && !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR);
         videoView.setPlaybackAllowed(wifi);

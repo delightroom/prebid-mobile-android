@@ -236,6 +236,10 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
     }
 
     public boolean isAutoDisplayOnLoad() {
+        if (adView instanceof org.prebid.mobile.api.rendering.VideoView
+            && ((org.prebid.mobile.api.rendering.VideoView) adView).isPrepareStillFrameEnabled()) {
+            return false;
+        }
         boolean result = adConfiguration.isAdType(AdFormat.BANNER);
         if (builtInVideoFirstStart) {
             builtInVideoFirstStart = false;

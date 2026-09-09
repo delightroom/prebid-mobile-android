@@ -760,6 +760,28 @@ public class AdViewManagerTest {
     }
 
     @Test
+    public void inBannerLoadDoesNotStartVideoBeforeFirstFrameCallback() throws Exception {
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setBuiltInVideo(true);
+        mockVideoCreativeWithConfiguration(configuration);
+        when(mockVideoCreative.isResolved()).thenReturn(true);
+        when(mockVideoCreative.getCreativeView()).thenReturn(mockVideoCreativeView);
+        TransactionManager transactions = mockTransactionWithoutEndCard();
+        VideoView banner = mock(VideoView.class);
+        when(banner.isPrepareStillFrameEnabled()).thenReturn(true);
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, transactions);
+        WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, banner);
+        WhiteBox.field(AdViewManager.class, "adConfiguration").set(adViewManager, configuration);
+
+        adViewManager.onFetchingCompleted(transactions.getCurrentTransaction());
+
+        verify(mockAdViewListener).adLoaded(any(AdDetails.class));
+        verify(mockVideoCreative, never()).display();
+        adViewManager.show();
+        verify(mockVideoCreative).display();
+    }
+
+    @Test
     public void whenFetchedSuccessful_ProcessTransaction() {
         Transaction mockTransaction = mock(Transaction.class);
         CreativeFactory mockFactory = mock(CreativeFactory.class);
