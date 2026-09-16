@@ -18,7 +18,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 @RunWith(JUnit4.class)
-@Config(sdk = 19)
+@Config(sdk = 23)
 public class DaroTrackingObserverTest {
 
     @Test

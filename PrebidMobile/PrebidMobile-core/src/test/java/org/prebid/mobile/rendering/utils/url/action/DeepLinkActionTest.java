@@ -28,7 +28,7 @@ import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertFalse;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 19)
+@Config(sdk = 23)
 public class DeepLinkActionTest {
     private DeepLinkAction deepLinkAction;
 

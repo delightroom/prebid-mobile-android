@@ -44,7 +44,7 @@ import org.robolectric.annotation.Config;
 import static org.mockito.Mockito.*;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 19)
+@Config(sdk = 23)
 public class PrebidDisplayViewTest {
 
     private PrebidDisplayView prebidDisplayView;

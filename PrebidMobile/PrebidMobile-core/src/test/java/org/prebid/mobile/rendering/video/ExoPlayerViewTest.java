@@ -19,9 +19,9 @@ package org.prebid.mobile.rendering.video;
 import android.app.Activity;
 import android.content.Context;
 import android.net.Uri;
-import com.google.android.exoplayer2.Player;
-import com.google.android.exoplayer2.SimpleExoPlayer;
-import com.google.android.exoplayer2.source.MediaSource;
+import androidx.media3.common.Player;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.source.MediaSource;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -41,7 +41,7 @@ public class ExoPlayerViewTest {
     @Mock
     VideoCreative mockVideoCreative;
     @Mock
-    SimpleExoPlayer mockSimpleExoPlayer;
+    ExoPlayer mockExoPlayer;
 
     @Before
     public void setUp() throws Exception {
@@ -50,16 +50,16 @@ public class ExoPlayerViewTest {
         Context context = Robolectric.buildActivity(Activity.class).create().get();
 
         exoPlayerView = spy(new ExoPlayerView(context, mockVideoCreative));
-        WhiteBox.field(ExoPlayerView.class, "player").set(exoPlayerView, mockSimpleExoPlayer);
+        WhiteBox.field(ExoPlayerView.class, "player").set(exoPlayerView, mockExoPlayer);
 
-        reset(mockVideoCreative, mockSimpleExoPlayer);
+        reset(mockVideoCreative, mockExoPlayer);
     }
 
     @Test
     public void setValidVolume_TrackEventAndChangePlayerVolume() {
         exoPlayerView.setVolume(1);
 
-        verify(mockSimpleExoPlayer, times(1)).setVolume(1);
+        verify(mockExoPlayer, times(1)).setVolume(1);
         verify(mockVideoCreative, times(1)).onVolumeChanged(1);
     }
 
@@ -67,7 +67,7 @@ public class ExoPlayerViewTest {
     public void setInvalidVolume_NoEventAndNoVolumeChange() {
         exoPlayerView.setVolume(-1);
 
-        verifyNoMoreInteractions(mockSimpleExoPlayer);
+        verifyNoMoreInteractions(mockExoPlayer);
         verifyNoMoreInteractions(mockVideoCreative);
     }
 
@@ -80,7 +80,7 @@ public class ExoPlayerViewTest {
     @Test
     public void isPlaying() {
         exoPlayerView.isPlaying();
-        verify(mockSimpleExoPlayer).getPlayWhenReady();
+        verify(mockExoPlayer).getPlayWhenReady();
         when(exoPlayerView.isPlaying()).thenReturn(false);
         boolean playing = exoPlayerView.isPlaying();
         assertFalse(playing);
@@ -101,7 +101,7 @@ public class ExoPlayerViewTest {
         exoPlayerView.setVideoUri(null);
         exoPlayerView.start(anyInt());
 
-        verifyNoInteractions(mockSimpleExoPlayer);
+        verifyNoInteractions(mockExoPlayer);
         verifyNoInteractions(mockVideoCreative);
     }
 
@@ -112,8 +112,8 @@ public class ExoPlayerViewTest {
 
         verify(mockVideoCreative).onEvent(VideoAdEvent.Event.AD_CREATIVEVIEW);
         verify(mockVideoCreative).onEvent(VideoAdEvent.Event.AD_START);
-        verify(mockSimpleExoPlayer).setMediaSource(any(MediaSource.class), anyBoolean());
-        verify(mockSimpleExoPlayer).prepare();
+        verify(mockExoPlayer).setMediaSource(any(MediaSource.class), anyBoolean());
+        verify(mockExoPlayer).prepare();
     }
 
     @Test
@@ -127,8 +127,8 @@ public class ExoPlayerViewTest {
         events.onPlaybackStateChanged(Player.STATE_READY);
         exoPlayerView.pause();
         exoPlayerView.resume();
-        verify(mockSimpleExoPlayer).setVolume(0);
-        verify(mockSimpleExoPlayer, never()).setPlayWhenReady(true);
+        verify(mockExoPlayer).setVolume(0);
+        verify(mockExoPlayer, never()).setPlayWhenReady(true);
         verifyNoInteractions(mockVideoCreative, ready);
 
         events.onRenderedFirstFrame();
@@ -147,7 +147,7 @@ public class ExoPlayerViewTest {
         exoPlayerView.prepareStillFrame(ready);
 
         verify(mockVideoCreative).onFailure(any());
-        verifyNoInteractions(mockSimpleExoPlayer, ready);
+        verifyNoInteractions(mockExoPlayer, ready);
     }
 
     @Test
@@ -173,13 +173,13 @@ public class ExoPlayerViewTest {
         exoPlayerView.pause();
         Player.Listener events = (Player.Listener) WhiteBox.field(ExoPlayerView.class, "eventListener").get(exoPlayerView);
         events.onPlaybackStateChanged(Player.STATE_READY);
-        verify(mockSimpleExoPlayer, never()).setPlayWhenReady(true);
-        verify(mockSimpleExoPlayer, never()).stop();
+        verify(mockExoPlayer, never()).setPlayWhenReady(true);
+        verify(mockExoPlayer, never()).stop();
     }
 
     private void useRealViewForPlayerCallbacks() throws Exception {
         exoPlayerView = new ExoPlayerView(exoPlayerView.getContext(), mockVideoCreative);
-        WhiteBox.field(ExoPlayerView.class, "player").set(exoPlayerView, mockSimpleExoPlayer);
+        WhiteBox.field(ExoPlayerView.class, "player").set(exoPlayerView, mockExoPlayer);
     }
 
     @Test
@@ -191,7 +191,7 @@ public class ExoPlayerViewTest {
     @Test
     public void getCurrentPosition() {
         exoPlayerView.getCurrentPosition();
-        verify(mockSimpleExoPlayer).getContentPosition();
+        verify(mockExoPlayer).getContentPosition();
     }
 
     @Test
@@ -203,7 +203,7 @@ public class ExoPlayerViewTest {
     @Test
     public void getDuration() {
         exoPlayerView.getDuration();
-        verify(mockSimpleExoPlayer).getDuration();
+        verify(mockExoPlayer).getDuration();
     }
 
     @Test
@@ -220,7 +220,7 @@ public class ExoPlayerViewTest {
     @Test
     public void pause() {
         exoPlayerView.pause();
-        verify(mockSimpleExoPlayer).stop();
+        verify(mockExoPlayer).stop();
     }
 
     @Test
@@ -230,15 +230,15 @@ public class ExoPlayerViewTest {
         exoPlayerView.destroy();
         verify(mockAdViewProgressUpdateTask).cancel(true);
         verify(exoPlayerView, times(1)).destroy();
-        verify(mockSimpleExoPlayer).removeListener(any(Player.Listener.class));
+        verify(mockExoPlayer).removeListener(any(Player.Listener.class));
         verify(exoPlayerView).setPlayer(null);
-        verify(mockSimpleExoPlayer).release();
+        verify(mockExoPlayer).release();
     }
 
     @Test
     public void forceStop() {
         exoPlayerView.forceStop();
-        verify(mockSimpleExoPlayer).stop();
+        verify(mockExoPlayer).stop();
         verify(exoPlayerView, times(1)).destroy();
         verify(mockVideoCreative).onDisplayCompleted();
     }
@@ -248,8 +248,8 @@ public class ExoPlayerViewTest {
         exoPlayerView.setVideoUri(Uri.EMPTY);
         exoPlayerView.resume();
 
-        verify(mockSimpleExoPlayer).setMediaSource(any(MediaSource.class), anyBoolean());
-        verify(mockSimpleExoPlayer).prepare();
+        verify(mockExoPlayer).setMediaSource(any(MediaSource.class), anyBoolean());
+        verify(mockExoPlayer).prepare();
     }
 
     @Test
@@ -257,6 +257,6 @@ public class ExoPlayerViewTest {
         exoPlayerView.setVideoUri(null);
         exoPlayerView.resume();
 
-        verifyNoInteractions(mockSimpleExoPlayer);
+        verifyNoInteractions(mockExoPlayer);
     }
 }

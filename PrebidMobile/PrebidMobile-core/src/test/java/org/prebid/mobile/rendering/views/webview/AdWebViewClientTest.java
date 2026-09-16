@@ -28,7 +28,7 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.*;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 19)
+@Config(sdk = 23)
 public class AdWebViewClientTest {
 
     public static final String TEST_URL = "test";

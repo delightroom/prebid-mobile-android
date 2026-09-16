@@ -35,7 +35,7 @@ import static org.mockito.Mockito.*;
 import static org.prebid.mobile.rendering.views.browser.AdBrowserActivity.EXTRA_URL;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 19)
+@Config(sdk = 23)
 public class AdBrowserActivityTest {
 
     private AdBrowserActivity adBrowserActivity;

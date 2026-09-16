@@ -49,7 +49,7 @@ import org.robolectric.annotation.Config;
 import java.io.IOException;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 19)
+@Config(sdk = 23)
 public class CreativeModelMakerBidsTest {
 
     private CreativeModelMakerBids modelMakerBids;
