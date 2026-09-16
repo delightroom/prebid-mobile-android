@@ -350,7 +350,7 @@ public class BaseJSInterfaceTest {
     @Test
     public void getCurrentPositionTest() throws Exception {
         String currentPosition = spyBaseJSInterface.getCurrentPosition();
-        assertEquals("{\"x\":0,\"width\":0,\"y\":0,\"height\":0}", currentPosition);
+        org.prebid.mobile.test.utils.ResourceUtils.assertJsonEquals(new org.json.JSONObject("{\"x\":0,\"width\":0,\"y\":0,\"height\":0}"), new org.json.JSONObject(currentPosition));
 
         when(mockWebViewBase.getGlobalVisibleRect(any(Rect.class))).then(invocation -> {
             Rect argumentRect = invocation.getArgument(0);
