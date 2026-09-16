@@ -52,7 +52,7 @@ public class VideoCreative extends VideoCreativeProtocol
 
     @VisibleForTesting VideoCreativeView videoCreativeView;
 
-    private AsyncTask videoDownloadTask;
+    private VideoDownloadTask videoDownloadTask;
 
     private String preloadedVideoFilePath;
     private boolean terminalEventHandled;
@@ -82,12 +82,8 @@ public class VideoCreative extends VideoCreativeProtocol
 
         Context context = contextReference.get();
         if (context != null) {
-            AdUnitConfiguration adConfiguration = model.getAdConfiguration();
-            String shortenedPath = LruController.getShortenedPath(params.url);
-            File file = new File(context.getFilesDir(), shortenedPath);
-            VideoDownloadTask videoDownloadTask = new VideoDownloadTask(context, file,
-                                                                        new VideoCreativeVideoPreloadListener(this), adConfiguration);
-            this.videoDownloadTask = videoDownloadTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, params);
+            videoDownloadTask = new VideoDownloadTask(context, new VideoCreativeVideoPreloadListener(this));
+            videoDownloadTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, params);
         }
     }
 
@@ -259,6 +255,7 @@ public class VideoCreative extends VideoCreativeProtocol
 
         if (videoDownloadTask != null) {
             videoDownloadTask.cancel(true);
+            videoDownloadTask.release();
         }
     }
 
@@ -273,12 +270,12 @@ public class VideoCreative extends VideoCreativeProtocol
     }
 
     /**
-     * @return true if {@link #preloadedVideoFilePath} is not empty and file exists in filesDir, false otherwise.
+     * @return true if {@link #preloadedVideoFilePath} is not empty and file exists, false otherwise.
      */
     @Override
     public boolean isResolved() {
         if (contextReference.get() != null && !TextUtils.isEmpty(preloadedVideoFilePath)) {
-            File file = new File(contextReference.get().getFilesDir(), preloadedVideoFilePath);
+            File file = new File(preloadedVideoFilePath);
             return file.exists();
         }
         return false;
@@ -342,7 +339,7 @@ public class VideoCreative extends VideoCreativeProtocol
             videoCreativeView.setBroadcastId(adConfiguration.getBroadcastId());
 
             // Get the preloaded video from device file storage
-            videoUri = Uri.fromFile(new File(context.getFilesDir() + (model.getMediaUrl())));
+            videoUri = Uri.fromFile(new File(preloadedVideoFilePath));
         }
 
         // Show call-to-action overlay right away if click through url is available & end card is not available
@@ -478,7 +475,6 @@ public class VideoCreative extends VideoCreativeProtocol
             }
 
             videoCreative.preloadedVideoFilePath = shortenedPath;
-            videoCreative.model.setMediaUrl(shortenedPath);
             videoCreative.loadContinued();
         }
 

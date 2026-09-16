@@ -16,153 +16,117 @@
 
 package org.prebid.mobile.rendering.video;
 
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.media.MediaMetadataRetriever;
-import android.net.Uri;
-import org.prebid.mobile.LogUtil;
-import org.prebid.mobile.configuration.AdUnitConfiguration;
+
+import org.prebid.mobile.PrebidMobile;
 import org.prebid.mobile.rendering.loading.FileDownloadListener;
-import org.prebid.mobile.rendering.loading.FileDownloadTask;
+import org.prebid.mobile.rendering.networking.BaseNetworkTask;
 
-import java.io.*;
-import java.net.URLConnection;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.concurrent.TimeUnit;
+import java.io.File;
+import java.io.IOException;
+import java.util.HashMap;
 
-@SuppressLint("StaticFieldLeak")
-public class VideoDownloadTask extends FileDownloadTask {
+/** A consumer of the process-wide file cache; cancellation never cancels another ad's consumer. */
+public class VideoDownloadTask extends BaseNetworkTask {
+    private static VideoFileCache cache;
+    private final VideoFileCache fileCache;
+    private final FileDownloadListener listener;
+    private VideoFileCache.Lease lease;
+    private boolean released;
 
-    private static final String TAG = VideoDownloadTask.class.getSimpleName();
-    private Context applicationContext;
-    private AdUnitConfiguration adConfiguration;
+    public VideoDownloadTask(Context context, FileDownloadListener listener) {
+        this(cache(context.getApplicationContext()), listener);
+    }
 
-    public VideoDownloadTask(
-            Context context,
-            File file,
-            FileDownloadListener fileDownloadListener,
-            AdUnitConfiguration adConfiguration
-    ) {
-        super(fileDownloadListener, file);
-        if (context == null) {
-            String contextIsNull = "Context is null";
-            fileDownloadListener.onFileDownloadError(contextIsNull);
-            throw new NullPointerException(contextIsNull);
+    VideoDownloadTask(VideoFileCache fileCache, FileDownloadListener listener) {
+        super(listener);
+        this.listener = listener;
+        this.fileCache = fileCache;
+    }
+
+    private static synchronized VideoFileCache cache(Context context) {
+        if (cache == null) {
+            cache =
+                    new VideoFileCache(
+                            new File(context.getCacheDir(), "prebid-video-v1"),
+                            new File(context.getNoBackupFilesDir(), "prebid-video-temporary"),
+                            System::currentTimeMillis,
+                            file -> {
+                                MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+                                try {
+                                    retriever.setDataSource(file.getAbsolutePath());
+                                    if (!"yes"
+                                            .equals(
+                                                    retriever.extractMetadata(
+                                                            MediaMetadataRetriever
+                                                                    .METADATA_KEY_HAS_VIDEO))) {
+                                        throw new IOException("Downloaded file has no video");
+                                    }
+                                } catch (RuntimeException e) {
+                                    throw new IOException("Invalid downloaded video", e);
+                                } finally {
+                                    retriever.release();
+                                }
+                            });
         }
-        this.adConfiguration = adConfiguration;
-        applicationContext = context.getApplicationContext();
+        return cache;
     }
 
     @Override
-    public GetUrlResult sendRequest(GetUrlParams param) throws Exception {
-        LogUtil.debug(TAG, "Sending request to the URL: : " + param.url);
-
-        return createResult(param);
-    }
-
-    private String getShortenedPath() {
-        String path = file.getPath();
-        int beginIndex = path.lastIndexOf("/");
-        return beginIndex != -1 ? path.substring(beginIndex) : path;
-    }
-
-    @Override
-    protected void processData(URLConnection connection, GetUrlResult result) throws IOException {
-        String shortenedPath = getShortenedPath();
-        if (file.exists() && !LruController.isAlreadyCached(shortenedPath)) {
-            LogUtil.debug(TAG, "Video saved to cache");
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            readAndWriteData(connection, result, outputStream, false);
-            LruController.putVideoCache(shortenedPath, outputStream.toByteArray());
-        } else {
-            LogUtil.debug(TAG, "Video saved to file: " + shortenedPath);
-            readAndWriteData(connection, result, new FileOutputStream(file), true);
-        }
-    }
-
-    private void readAndWriteData(URLConnection in, GetUrlResult result, OutputStream out,
-                                  boolean deleteOnAbort) throws IOException {
-        int length = in.getContentLength();
-        InputStream is = in.getInputStream();
-        byte[] data = new byte[16384];
-        long total = 0;
-        int count;
+    public GetUrlResult sendRequest(GetUrlParams params) {
+        GetUrlResult result = new GetUrlResult();
         try {
-            while ((count = is.read(data)) != -1) {
-                // allow canceling with back button
-                if (isCancelled()) {
-                    if (deleteOnAbort) {
-                        if (file.exists()) {
-                            file.delete();
-                        }
-                    }
-                    result.setException(null);
-                    return;
-                }
-                total += count;
-                // publishing the progress....
-                if (length > 0) // only if total length is known
-                {
-                    publishProgress((int) (total * 100 / length));
-                }
-                out.write(data, 0, count);
+            VideoFileCache.Lease acquired =
+                    fileCache.acquire(
+                            params.url,
+                            params.userAgent,
+                            new HashMap<>(PrebidMobile.getCustomHeaders()),
+                            PrebidMobile.getTimeoutMillis(),
+                            this::isCancelled);
+            synchronized (this) {
+                if (released || isCancelled()) acquired.close();
+                else lease = acquired;
             }
-        }
-        catch (IOException e) {
-            throw e;
-        }
-        finally {
-            try {
-
-                if (is != null) {
-                    is.close();
-                }
-                if (out != null) {
-                    out.close();
-                }
-            }
-            catch (Exception ignored) {
-            }
-        }
-    }
-
-    private GetUrlResult createResult(GetUrlParams param)
-    throws Exception {
-        result = new GetUrlResult();
-        String shortenedPath = getShortenedPath();
-        if (file.exists()) {
-            LogUtil.debug(TAG, "File exists: " + shortenedPath);
-            if (isVideoFileExpired(file) || !isVideoFileValid(applicationContext, file)) {
-                LogUtil.debug(TAG, "File " + shortenedPath + " is expired or broken. Downloading a new one");
-                file.delete();
-                result = super.sendRequest(param);
-            } else if (!LruController.isAlreadyCached(shortenedPath)) {
-                result = super.sendRequest(param);
-            }
-        }
-        else {
-            result = super.sendRequest(param);
+        } catch (IOException e) {
+            result.setException(e);
         }
         return result;
     }
 
-    private boolean isVideoFileExpired(File file) {
-        Date lastModDate = new Date(file.lastModified());
-        Date currentDate = Calendar.getInstance().getTime();
-        long diff = currentDate.getTime() - lastModDate.getTime();
-        return diff > TimeUnit.HOURS.toMillis(1);
+    @Override
+    protected void onPostExecute(GetUrlResult result) {
+        String path;
+        synchronized (this) {
+            if (released || isCancelled()) return;
+            path = lease == null ? null : lease.file.getAbsolutePath();
+        }
+        if (result == null || result.getException() != null || path == null) {
+            listener.onFileDownloadError(
+                    result == null || result.getException() == null
+                            ? "Video unavailable"
+                            : result.getException().getMessage());
+        } else listener.onFileDownloaded(path);
     }
 
-    private boolean isVideoFileValid(Context context, File file) {
-        try {
-            MediaMetadataRetriever retriever = new MediaMetadataRetriever();
-            retriever.setDataSource(context, Uri.fromFile(file));
-            String hasVideo = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO);
-            return hasVideo.equals("yes");
-        }
-        catch (Exception e) {
-            return false;
+    @Override
+    protected void onCancelled(GetUrlResult result) {
+        release();
+    }
+
+    @Override
+    public void destroy() {
+        cancel(true);
+        release();
+        super.destroy();
+    }
+
+    /** Called after the player releases the file, including cancellation before delivery. */
+    synchronized void release() {
+        released = true;
+        if (lease != null) {
+            lease.close();
+            lease = null;
         }
     }
 }

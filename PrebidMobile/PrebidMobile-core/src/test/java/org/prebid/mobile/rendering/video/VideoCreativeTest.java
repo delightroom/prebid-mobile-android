@@ -247,6 +247,7 @@ public class VideoCreativeTest {
 
         verify(mockVideoCreativeView).destroy();
         verify(mockVideoDownloadTask).cancel(true);
+        verify(mockVideoDownloadTask).release();
     }
 
     @Test
