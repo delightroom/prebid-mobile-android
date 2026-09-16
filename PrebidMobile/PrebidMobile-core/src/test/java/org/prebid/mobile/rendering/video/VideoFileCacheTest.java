@@ -80,6 +80,57 @@ public class VideoFileCacheTest {
     }
 
     @Test
+    public void lastCancellationAfterFileHandoffDeletesUnleasedTemporaryFile() throws Exception {
+        downloads.shutdownNow();
+        downloads = Executors.newSingleThreadExecutor();
+        CountDownLatch disconnectEntered = new CountDownLatch(1);
+        CountDownLatch finishDisconnect = new CountDownLatch(1);
+        AtomicInteger disconnectCalls = new AtomicInteger();
+        java.net.HttpURLConnection connection = org.mockito.Mockito.mock(java.net.HttpURLConnection.class);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            if (disconnectCalls.incrementAndGet() == 1) {
+                disconnectEntered.countDown();
+                assertTrue(finishDisconnect.await(3, TimeUnit.SECONDS));
+            }
+            return null;
+        }).when(connection).disconnect();
+        cache = new VideoFileCache(directory, fallback, time::get, file -> {
+            // Hold the completion boundary after the file is handed to the job but
+            // before waiters are notified, without changing the network payload.
+            try {
+                java.lang.reflect.Field jobsField = VideoFileCache.class.getDeclaredField("jobs");
+                jobsField.setAccessible(true);
+                synchronized (cache) {
+                    Object job = ((Map<?, ?>) jobsField.get(cache)).values().iterator().next();
+                    java.lang.reflect.Field connectionField = job.getClass().getDeclaredField("connection");
+                    connectionField.setAccessible(true);
+                    connectionField.set(job, connection);
+                }
+            } catch (ReflectiveOperationException e) {
+                throw new IOException(e);
+            }
+        }, downloads);
+        server.enqueue(response().setHeader("Cache-Control", "no-store"));
+        AtomicBoolean cancel = new AtomicBoolean();
+        Future<VideoFileCache.Lease> consumer = pending(cancel);
+        try {
+            assertTrue(disconnectEntered.await(3, TimeUnit.SECONDS));
+            assertEquals(1, fallback.listFiles().length);
+            cancel.set(true);
+            try {
+                consumer.get(3, TimeUnit.SECONDS);
+                fail("Cancelled consumer must not receive a lease");
+            } catch (ExecutionException expected) {
+                assertTrue(expected.getCause() instanceof InterruptedIOException);
+            }
+        } finally {
+            finishDisconnect.countDown();
+        }
+        downloads.submit(() -> {}).get(3, TimeUnit.SECONDS);
+        assertEquals(0, fallback.listFiles().length);
+    }
+
+    @Test
     public void diskHitSurvivesNewInstanceAndKeepsFullUrlIdentity() throws Exception {
         server.enqueue(response());
         server.enqueue(response());

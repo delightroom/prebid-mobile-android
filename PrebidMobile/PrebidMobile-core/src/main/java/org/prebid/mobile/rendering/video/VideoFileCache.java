@@ -271,6 +271,12 @@ final class VideoFileCache {
             if (job.connection != null) job.connection.disconnect();
             if (temporary != null) temporary.delete();
             synchronized (this) {
+                // The last consumer can cancel after the file handoff but before
+                // completion is published. No lease will own that temporary file.
+                if (job.consumers == 0 && !job.persistent && job.file != null
+                        && !readers.containsKey(job.file)) {
+                    job.file.delete();
+                }
                 job.done = true;
                 notifyAll();
             }
