@@ -61,6 +61,66 @@ public class VastParserExtractorTest {
     }
 
     @Test
+    public void emptyWrapperFiresResolvedErrorOnceAndIgnoresLateCallbacks() throws Exception {
+        org.prebid.mobile.rendering.networking.tracking.TrackingManager tracker =
+                mock(org.prebid.mobile.rendering.networking.tracking.TrackingManager.class);
+        java.lang.reflect.Field singleton = org.prebid.mobile.rendering.networking.tracking.TrackingManager.class.getDeclaredField("sInstance");
+        singleton.setAccessible(true);
+        Object original = singleton.get(null);
+        singleton.set(null, tracker);
+        try {
+            vastParserExtractor.extract(wrapper("", "first").replace("<Creatives/>",
+                    "<Error>https://example.test/error?code=[ERRORCODE]</Error><Creatives/>"));
+            vastParserExtractor.extract("<VAST version=\"3.0\"/>");
+            vastParserExtractor.extract("<VAST version=\"3.0\"/>");
+            verify(tracker).fireEventTrackingURL("https://example.test/error?code=303");
+            verifyNoMoreInteractions(tracker);
+            verify(mockListener).onResult(any());
+        } finally {
+            singleton.set(null, original);
+        }
+    }
+
+    @Test
+    public void nestedTimeoutReportsEveryWrapperWith301() throws Exception {
+        org.prebid.mobile.rendering.networking.tracking.TrackingManager tracker =
+                mock(org.prebid.mobile.rendering.networking.tracking.TrackingManager.class);
+        java.lang.reflect.Field singleton = org.prebid.mobile.rendering.networking.tracking.TrackingManager.class.getDeclaredField("sInstance");
+        singleton.setAccessible(true);
+        Object original = singleton.get(null);
+        singleton.set(null, tracker);
+        try {
+            for (String name : new String[]{"outer", "inner"}) {
+                vastParserExtractor.extract(wrapper("", name).replace("<Creatives/>",
+                        "<Error>https://example.test/" + name + "?code=[ERRORCODE]</Error><Creatives/>"));
+            }
+            ArgumentCaptor<org.prebid.mobile.rendering.networking.ResponseHandler> callback =
+                    ArgumentCaptor.forClass(org.prebid.mobile.rendering.networking.ResponseHandler.class);
+            verify(mockAsyncVastLoader, times(2)).loadVast(anyString(), callback.capture());
+            callback.getValue().onError("timeout", 3000);
+            callback.getValue().onError("timeout", 3000);
+            verify(tracker).fireEventTrackingURL("https://example.test/outer?code=301");
+            verify(tracker).fireEventTrackingURL("https://example.test/inner?code=301");
+            verifyNoMoreInteractions(tracker);
+            verify(mockListener).onResult(any());
+        } finally {
+            singleton.set(null, original);
+        }
+    }
+
+    @Test
+    public void cancelledExtractionIgnoresLateResponseAndFailure() throws Exception {
+        vastParserExtractor.extract(wrapper("", "first"));
+        ArgumentCaptor<org.prebid.mobile.rendering.networking.ResponseHandler> callback =
+                ArgumentCaptor.forClass(org.prebid.mobile.rendering.networking.ResponseHandler.class);
+        verify(mockAsyncVastLoader).loadVast(anyString(), callback.capture());
+        vastParserExtractor.cancel();
+        callback.getValue().onError("timeout", 3000);
+        vastParserExtractor.extract(defaultResponseString);
+        verifyNoInteractions(mockListener);
+    }
+
+    @Test
     public void whenFirstExtract_AssignRootParserAndMakeRequest()
     throws IllegalAccessException, IOException {
         String responseString = ResourceUtils.convertResourceToString("vast_wrapper_linear_nonlinear.xml");
@@ -101,6 +161,51 @@ public class VastParserExtractorTest {
         final VastExtractorResult value = argument.getValue();
         assertTrue(value.hasException());
         assertEquals(exception.getMessage(), value.getAdException().getMessage());
+    }
+
+    @Test
+    public void disallowedAdditionalWrapperDoesNotFetchOrRender() {
+        for (String value : new String[]{"false", "0"}) {
+            VastParserExtractor.Listener listener = mock(VastParserExtractor.Listener.class);
+            AsyncVastLoader loader = mock(AsyncVastLoader.class);
+            VastParserExtractor extractor = new VastParserExtractor(listener);
+            try {
+                WhiteBox.field(VastParserExtractor.class, "asyncVastLoader").set(extractor, loader);
+            } catch (IllegalAccessException error) {
+                throw new AssertionError(error);
+            }
+            extractor.extract(wrapper(" followAdditionalWrappers=\"" + value + "\"", "first"));
+            extractor.extract(wrapper("", "second"));
+            verify(loader).loadVast(eq("https://example.test/first"), any());
+            verifyNoMoreInteractions(loader);
+            ArgumentCaptor<VastExtractorResult> result = ArgumentCaptor.forClass(VastExtractorResult.class);
+            verify(listener).onResult(result.capture());
+            assertTrue(result.getValue().hasException());
+        }
+    }
+
+    @Test
+    public void disallowedAdditionalWrapperStillAcceptsInline() {
+        vastParserExtractor.extract(wrapper(" followAdditionalWrappers=\"false\"", "first"));
+        vastParserExtractor.extract(defaultResponseString);
+        ArgumentCaptor<VastExtractorResult> result = ArgumentCaptor.forClass(VastExtractorResult.class);
+        verify(mockListener).onResult(result.capture());
+        assertFalse(result.getValue().hasException());
+    }
+
+    @Test
+    public void omittedWrapperRestrictionContinuesUnwrapping() {
+        vastParserExtractor.extract(wrapper("", "first"));
+        vastParserExtractor.extract(wrapper("", "second"));
+        verify(mockAsyncVastLoader).loadVast(eq("https://example.test/first"), any());
+        verify(mockAsyncVastLoader).loadVast(eq("https://example.test/second"), any());
+        verifyNoInteractions(mockListener);
+    }
+
+    private static String wrapper(String attributes, String path) {
+        return "<VAST version=\"3.0\"><Ad><Wrapper" + attributes + "><AdSystem>Fixture</AdSystem>"
+            + "<VASTAdTagURI>https://example.test/" + path + "</VASTAdTagURI>"
+            + "<Impression>https://example.test/impression</Impression><Creatives/></Wrapper></Ad></VAST>";
     }
 
     @Test

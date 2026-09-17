@@ -140,6 +140,10 @@ public class OmAdSessionManager {
      *
      * @param adVerifications VAST AdVerification node
      */
+    public boolean isVideoVerificationReady() {
+        return !omidSessionSkipped && adSession != null && mediaEvents != null;
+    }
+
     public void initVideoAdSession(AdVerifications adVerifications, String contentUrl) {
         omidSessionSkipped = false;
         if (adVerifications == null ||
@@ -635,13 +639,14 @@ public class OmAdSessionManager {
         List<Verification> verificationList = adVerifications.getVerifications();
 
         for (Verification verification : verificationList) {
+            if (!verification.isSupportedOmidResource()) continue;
             final URL url = new URL(verification.getJsResource());
             final String vendorKey = verification.getVendor();
             final String params = verification.getVerificationParameters();
 
-            VerificationScriptResource verificationScriptResource =
-                VerificationScriptResource
-                    .createVerificationScriptResourceWithParameters(vendorKey, url, params);
+            VerificationScriptResource verificationScriptResource = hasText(vendorKey) && hasText(params)
+                    ? VerificationScriptResource.createVerificationScriptResourceWithParameters(vendorKey, url, params)
+                    : VerificationScriptResource.createVerificationScriptResourceWithoutParameters(url);
             verificationScriptResources.add(verificationScriptResource);
         }
 

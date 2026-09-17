@@ -29,7 +29,7 @@ public class VAST extends VASTParserBase {
 	private final static String VAST_AD = "Ad";
 
 	private Error error;
-	private ArrayList<Ad> ads;
+	private ArrayList<Ad> ads = new ArrayList<>();
 
 	private String version;
 

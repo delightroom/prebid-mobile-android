@@ -102,13 +102,8 @@ public class BaseNetworkTask
             return;
         }
 
-        //differentiate between vast response & normal tracking response
-        //Ex: <VAST version="2.0"> </VAST> is a wrong response for av calls. So should fail
-        if (urlResult.responseString != null && urlResult.responseString.length() < 100 && urlResult.responseString.contains("<VAST")) {
-            ((ResponseHandler) responseHandler).onError("Invalid VAST Response: less than 100 characters.", delta);
-        } else {
-            ((ResponseHandler) responseHandler).onResponse(urlResult);
-        }
+        // An empty VAST is a valid no-ad response. Let the VAST parser classify it (303).
+        ((ResponseHandler) responseHandler).onResponse(urlResult);
 
         destroy();
     }

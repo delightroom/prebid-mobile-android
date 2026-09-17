@@ -249,7 +249,7 @@ public class BaseNetworkTaskTest {
     }
 
     @Test
-    public void testEmptyVast() throws IOException {
+    public void emptyVastReachesParserWithoutBeingClassifiedAsNetworkFailure() throws IOException {
         server.enqueue(new MockResponse().setResponseCode(200).setBody("<VAST version=\"2.0\"></VAST>"));
 
         BaseNetworkTask baseNetworkTask = new BaseNetworkTask(baseResponseHandler);
@@ -261,8 +261,8 @@ public class BaseNetworkTaskTest {
             e.printStackTrace();
         }
 
-        Assert.assertEquals("Invalid VAST Response: less than 100 characters.", msg);
-        Assert.assertEquals(false, success);
+        Assert.assertTrue(success);
+        Assert.assertEquals("<VAST version=\"2.0\"></VAST>", response.responseString);
     }
 
     @Test

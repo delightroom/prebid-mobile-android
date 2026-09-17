@@ -1,113 +1,80 @@
-/*
- *    Copyright 2018-2021 Prebid.org, Inc.
- *
- *    Licensed under the Apache License, Version 2.0 (the "License");
- *    you may not use this file except in compliance with the License.
- *    You may obtain a copy of the License at
- *
- *        http://www.apache.org/licenses/LICENSE-2.0
- *
- *    Unless required by applicable law or agreed to in writing, software
- *    distributed under the License is distributed on an "AS IS" BASIS,
- *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *    See the License for the specific language governing permissions and
- *    limitations under the License.
- */
-
 package org.prebid.mobile.rendering.video;
 
-import android.app.Activity;
-import android.content.Context;
-import okhttp3.HttpUrl;
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.*;
+
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
-import org.junit.After;
-import org.junit.Before;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mockito;
-import org.prebid.mobile.configuration.AdUnitConfiguration;
 import org.prebid.mobile.rendering.loading.FileDownloadListener;
 import org.prebid.mobile.rendering.networking.BaseNetworkTask;
-import org.prebid.mobile.test.utils.ResourceUtils;
-import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
-import org.robolectric.annotation.LooperMode;
+import org.robolectric.RuntimeEnvironment;
 
 import java.io.File;
-import java.io.IOException;
-
-import static org.junit.Assert.assertNotNull;
-import static org.robolectric.annotation.LooperMode.Mode.LEGACY;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @RunWith(RobolectricTestRunner.class)
-@LooperMode(LEGACY)
 public class VideoDownloadTaskTest {
-    private BaseNetworkTask.GetUrlParams params;
-    private MockWebServer server;
-    private String path;
-    private String error;
-    private File file;
-    private Context context;
-
-    private FileDownloadListener listener = new FileDownloadListener() {
-        @Override
-        public void onFileDownloaded(String path) {
-            VideoDownloadTaskTest.this.path = path;
+    @Test
+    public void completeFileIsHeldUntilDestroyAndLateSuccessIsSuppressed() throws Exception {
+        MockWebServer server = new MockWebServer();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        File directory = new File(RuntimeEnvironment.getApplication().getCacheDir(), "task-test");
+        VideoFileCache cache =
+                new VideoFileCache(
+                        directory, directory, System::currentTimeMillis, file -> {}, executor);
+        FileDownloadListener listener = mock(FileDownloadListener.class);
+        try {
+            server.enqueue(
+                    new MockResponse().setBody("video").setHeader("Cache-Control", "no-store"));
+            BaseNetworkTask.GetUrlParams params = new BaseNetworkTask.GetUrlParams();
+            params.url = server.url("/video").toString();
+            params.userAgent = "fixture";
+            VideoDownloadTask task = new VideoDownloadTask(cache, listener);
+            BaseNetworkTask.GetUrlResult result = task.sendRequest(params);
+            assertNull(result.getException());
+            task.onPostExecute(result);
+            org.mockito.ArgumentCaptor<String> path =
+                    org.mockito.ArgumentCaptor.forClass(String.class);
+            verify(listener).onFileDownloaded(path.capture());
+            File file = new File(path.getValue());
+            assertTrue(file.isAbsolute());
+            assertTrue(file.exists());
+            task.destroy();
+            assertFalse(file.exists());
+            reset(listener);
+            task.onPostExecute(result);
+            verifyNoInteractions(listener);
+        } finally {
+            executor.shutdownNow();
+            server.shutdown();
         }
-
-        @Override
-        public void onFileDownloadError(String error) {
-            VideoDownloadTaskTest.this.error = error;
-        }
-    };
-
-    @Before
-    public void setup() {
-        file = new File("test");
-        server = new MockWebServer();
-        params = new BaseNetworkTask.GetUrlParams();
-        path = null;
-        error = null;
-        params.name = BaseNetworkTask.DOWNLOAD_TASK;
-        params.userAgent = "user-agent";
-        HttpUrl baseUrl = server.url("/first");
-        params.url = baseUrl.url().toString();
-        params.requestType = "GET";
-        context = Robolectric.buildActivity(Activity.class).create().get();
-    }
-
-    @After
-    public void tearDown() throws IOException {
-        server.shutdown();
-        file.delete();
     }
 
     @Test
-    public void testSuccessDoInBackground() throws IOException {
-        String body = ResourceUtils.convertResourceToString("mraid.js");
-        server.enqueue(new MockResponse().setResponseCode(200).setBody(body));
-
-        VideoDownloadTask baseNetworkTask = new VideoDownloadTask(
-                context.getApplicationContext(),
-                file, listener, Mockito.mock(AdUnitConfiguration.class));
-
-        baseNetworkTask.execute(params);
-
-        assertNotNull(path);
-    }
-
-    @Test(expected = NullPointerException.class)
-    public void testNullFile() {
-        VideoDownloadTask task = new VideoDownloadTask(context.getApplicationContext(), null, listener, Mockito.mock(AdUnitConfiguration.class));
-        task.execute(params);
+    public void releasedTaskCannotDeliverLateFailure() {
+        FileDownloadListener listener = mock(FileDownloadListener.class);
+        VideoDownloadTask task =
+                new VideoDownloadTask(RuntimeEnvironment.getApplication(), listener);
+        task.release();
+        BaseNetworkTask.GetUrlResult result = new BaseNetworkTask.GetUrlResult();
+        result.setException(new Exception("late"));
+        task.onPostExecute(result);
+        verifyNoInteractions(listener);
     }
 
     @Test
-    public void testWrongData() {
-        server.enqueue(new MockResponse().setResponseCode(401).setBody("Not found"));
-        VideoDownloadTask task = new VideoDownloadTask(context.getApplicationContext(), file, listener, Mockito.mock(AdUnitConfiguration.class));
-        task.execute(params);
-        assertNotNull(error);
+    public void downloadFailureIsDeliveredOnce() {
+        FileDownloadListener listener = mock(FileDownloadListener.class);
+        VideoDownloadTask task =
+                new VideoDownloadTask(RuntimeEnvironment.getApplication(), listener);
+        BaseNetworkTask.GetUrlResult result = new BaseNetworkTask.GetUrlResult();
+        result.setException(new Exception("failed"));
+        task.onPostExecute(result);
+        verify(listener).onFileDownloadError("failed");
     }
 }

@@ -110,7 +110,12 @@ public class CreativeModelsMakerVast extends CreativeModelsMaker {
             rootVastParser.getAllTrackings(rootVastParser, 0);
             rootVastParser.getImpressions(rootVastParser, 0);
             rootVastParser.getClickTrackings(rootVastParser, 0);
-            final String videoErrorUrl = rootVastParser.getError(rootVastParser, 0);
+            String mediaUrl = latestVastWrapperParser.getMediaFileUrl(latestVastWrapperParser, 0);
+            if (Utils.isBlank(mediaUrl)) {
+                VastErrorTracker.fire(rootVastParser.getErrorUrls(), 403);
+                notifyErrorListener(VASTErrorCodes.NO_SUPPORTED_MEDIA_ERROR.toString());
+                return;
+            }
             final String vastClickThroughUrl = rootVastParser.getClickThroughUrl(rootVastParser, 0);
             final String effectiveClickThroughUrl = Utils.isNotBlank(adConfiguration.getDaroClickThroughUrl())
                     ? adConfiguration.getDaroClickThroughUrl()
@@ -131,7 +136,18 @@ public class CreativeModelsMakerVast extends CreativeModelsMaker {
 
             videoModel.setName(VIDEO_CREATIVE_TAG);
 
-            videoModel.setMediaUrl(latestVastWrapperParser.getMediaFileUrl(latestVastWrapperParser, 0));
+            selectedCreative:
+            for (org.prebid.mobile.rendering.video.vast.Creative creative :
+                    latestVastWrapperParser.getVast().getAds().get(0).getInline().getCreatives()) {
+                if (creative.getLinear() == null) continue;
+                for (org.prebid.mobile.rendering.video.vast.MediaFile file : creative.getLinear().getMediaFiles()) {
+                    if (mediaUrl.equals(file.getValue())) {
+                        videoModel.setVastCreative(creative);
+                        break selectedCreative;
+                    }
+                }
+            }
+            videoModel.setMediaUrl(mediaUrl);
             videoModel.setMediaDuration(Utils.getMsFrom(videoDuration));
             videoModel.setSkipOffset(Utils.getMsFrom(skipOffset));
             videoModel.setAdVerifications(adVerifications);
@@ -159,8 +175,7 @@ public class CreativeModelsMakerVast extends CreativeModelsMaker {
             videoModel.getVideoEventUrls().put(VideoAdEvent.Event.AD_CLICK, clickTrackingUrls);
 
             //put error vastURL into element
-            ArrayList<String> errorUrls = new ArrayList<>();
-            errorUrls.add(videoErrorUrl);
+            ArrayList<String> errorUrls = rootVastParser.getErrorUrls();
             videoModel.getVideoEventUrls().put(VideoAdEvent.Event.AD_ERROR, errorUrls);
 
             //put click through url into element
@@ -245,6 +260,7 @@ public class CreativeModelsMakerVast extends CreativeModelsMaker {
             listener.onCreativeModelReady(result);
         } catch (Exception e) {
             LogUtil.error(TAG, "Video failed with: " + e.getMessage());
+            VastErrorTracker.fire(rootVastParser.getErrorUrls(), 400);
             notifyErrorListener("Video failed: " + e.getMessage());
         }
     }

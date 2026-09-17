@@ -204,7 +204,7 @@ public class GetOriginalUrlTaskTest {
     }
 
     @Test
-    public void testEmptyVast() throws IOException {
+    public void shortVastBodyIsNotRejectedByTransport() throws IOException {
         server.enqueue(new MockResponse().setResponseCode(200).setBody("<VAST version=\"2.0\"></VAST>"));
 
         GetOriginalUrlTask baseNetworkTask = new GetOriginalUrlTask(baseResponseHandler);
@@ -215,8 +215,8 @@ public class GetOriginalUrlTaskTest {
             e.printStackTrace();
         }
 
-        assertEquals("Invalid VAST Response: less than 100 characters.", msg);
-        assertEquals(false, success);
+        assertTrue(success);
+        assertEquals(null, msg);
     }
 
     @Test

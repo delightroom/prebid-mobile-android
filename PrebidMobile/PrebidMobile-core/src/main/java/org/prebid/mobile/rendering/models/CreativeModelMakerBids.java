@@ -45,7 +45,7 @@ public class CreativeModelMakerBids {
     private String viewableUrl;
 
     @NonNull private final AdLoadListener listener;
-    private final VastParserExtractor parserExtractor = new VastParserExtractor(this::handleExtractorResult);
+    private VastParserExtractor parserExtractor = new VastParserExtractor(this::handleExtractorResult);
 
     private AdUnitConfiguration adConfiguration;
 
@@ -96,6 +96,9 @@ public class CreativeModelMakerBids {
     }
 
     public void makeVideoModels(AdUnitConfiguration adConfiguration, String vast) {
+        // Transaction cleanup also cancels before the first load. Each load needs its own chain.
+        parserExtractor.cancel();
+        parserExtractor = new VastParserExtractor(this::handleExtractorResult);
         this.adConfiguration = adConfiguration;
         this.adConfiguration.setAdFormat(AdFormat.VAST);
         parserExtractor.extract(vast);

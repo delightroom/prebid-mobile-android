@@ -162,18 +162,19 @@ public class CreativeModelMakerBidsTest {
         modelMakerBids.makeModels(configuration, bidResponse);
 
         assertTrue(configuration.isAdType(AdFormat.VAST));
-        verify(mockExtractor, Mockito.times(1)).extract(any());
+        verify(mockLoadListener).onFailedToLoadAd(any(AdException.class), any());
     }
 
     @Test
-    public void makeVideoModels_ExecuteVastParserExtractor() {
+    public void makeVideoModels_StartsNewChainAfterCancellation() {
         final AdUnitConfiguration mockConfig = mock(AdUnitConfiguration.class);
         final String vast = "1234";
 
+        modelMakerBids.cancel();
         modelMakerBids.makeVideoModels(mockConfig, vast);
 
         verify(mockConfig).setAdFormat(eq(AdFormat.VAST));
-        verify(mockExtractor).extract(eq(vast));
+        verify(mockLoadListener).onFailedToLoadAd(any(AdException.class), any());
     }
 
     @Test

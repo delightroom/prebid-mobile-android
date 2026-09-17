@@ -52,7 +52,7 @@ public class VideoCreative extends VideoCreativeProtocol
 
     @VisibleForTesting VideoCreativeView videoCreativeView;
 
-    private AsyncTask videoDownloadTask;
+    private VideoDownloadTask videoDownloadTask;
 
     private String preloadedVideoFilePath;
     private boolean terminalEventHandled;
@@ -82,12 +82,8 @@ public class VideoCreative extends VideoCreativeProtocol
 
         Context context = contextReference.get();
         if (context != null) {
-            AdUnitConfiguration adConfiguration = model.getAdConfiguration();
-            String shortenedPath = LruController.getShortenedPath(params.url);
-            File file = new File(context.getFilesDir(), shortenedPath);
-            VideoDownloadTask videoDownloadTask = new VideoDownloadTask(context, file,
-                                                                        new VideoCreativeVideoPreloadListener(this), adConfiguration);
-            this.videoDownloadTask = videoDownloadTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, params);
+            videoDownloadTask = new VideoDownloadTask(context, new VideoCreativeVideoPreloadListener(this));
+            videoDownloadTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, params);
         }
     }
 
@@ -127,6 +123,7 @@ public class VideoCreative extends VideoCreativeProtocol
 
     @Override
     public void onFailure(AdException error) {
+        if (!beginTerminalEvent()) return;
         // ad -> inline -> error
         model.trackVideoEvent(VideoAdEvent.Event.AD_ERROR);
         getResolutionListener().creativeFailed(error);
@@ -204,14 +201,14 @@ public class VideoCreative extends VideoCreativeProtocol
 
     @Override
     public void mute() {
-        if (videoCreativeView != null && videoCreativeView.getVolume() != 0) {
+        if (videoCreativeView != null) {
             videoCreativeView.mute();
         }
     }
 
     @Override
     public void unmute() {
-        if (videoCreativeView != null && videoCreativeView.getVolume() == 0) {
+        if (videoCreativeView != null) {
             videoCreativeView.unMute();
         }
     }
@@ -224,13 +221,26 @@ public class VideoCreative extends VideoCreativeProtocol
 
     @Override
     public void createOmAdSession() {
+        if (terminalEventHandled) return;
+        if (model.hasInteractiveCreativeFile()) model.trackVastFeatureError(409);
         OmAdSessionManager omAdSessionManager = weakOmAdSessionManager.get();
         if (omAdSessionManager == null) {
             LogUtil.error(TAG, "Error creating AdSession. OmAdSessionManager is null");
+            if (model.getAdVerifications() != null && !model.getAdVerifications().getVerifications().isEmpty()) {
+                model.trackVastFeatureError(410);
+            }
             return;
         }
 
         omAdSessionManager.initVideoAdSession(model.getAdVerifications(), null);
+        if (model.getAdVerifications() != null && model.getAdVerifications().getVerifications() != null) {
+            for (org.prebid.mobile.rendering.video.vast.Verification verification :
+                    model.getAdVerifications().getVerifications()) {
+                if (!verification.isSupportedOmidResource() || !omAdSessionManager.isVideoVerificationReady()) {
+                    model.trackVastFeatureError(410);
+                }
+            }
+        }
         startOmSession();
     }
 
@@ -251,6 +261,7 @@ public class VideoCreative extends VideoCreativeProtocol
 
     @Override
     public void destroy() {
+        terminalEventHandled = true;
         super.destroy();
 
         if (videoCreativeView != null) {
@@ -259,6 +270,7 @@ public class VideoCreative extends VideoCreativeProtocol
 
         if (videoDownloadTask != null) {
             videoDownloadTask.cancel(true);
+            videoDownloadTask.release();
         }
     }
 
@@ -273,12 +285,12 @@ public class VideoCreative extends VideoCreativeProtocol
     }
 
     /**
-     * @return true if {@link #preloadedVideoFilePath} is not empty and file exists in filesDir, false otherwise.
+     * @return true if {@link #preloadedVideoFilePath} is not empty and file exists, false otherwise.
      */
     @Override
     public boolean isResolved() {
         if (contextReference.get() != null && !TextUtils.isEmpty(preloadedVideoFilePath)) {
-            File file = new File(contextReference.get().getFilesDir(), preloadedVideoFilePath);
+            File file = new File(preloadedVideoFilePath);
             return file.exists();
         }
         return false;
@@ -342,7 +354,7 @@ public class VideoCreative extends VideoCreativeProtocol
             videoCreativeView.setBroadcastId(adConfiguration.getBroadcastId());
 
             // Get the preloaded video from device file storage
-            videoUri = Uri.fromFile(new File(context.getFilesDir() + (model.getMediaUrl())));
+            videoUri = Uri.fromFile(new File(preloadedVideoFilePath));
         }
 
         // Show call-to-action overlay right away if click through url is available & end card is not available
@@ -478,7 +490,6 @@ public class VideoCreative extends VideoCreativeProtocol
             }
 
             videoCreative.preloadedVideoFilePath = shortenedPath;
-            videoCreative.model.setMediaUrl(shortenedPath);
             videoCreative.loadContinued();
         }
 
@@ -490,6 +501,8 @@ public class VideoCreative extends VideoCreativeProtocol
                 return;
             }
 
+            if (!videoCreative.beginTerminalEvent()) return;
+            videoCreative.model.trackVastError(400);
             videoCreative.getResolutionListener().creativeFailed(new AdException(AdException.INTERNAL_ERROR, "Preloading failed: " + error));
         }
     }
