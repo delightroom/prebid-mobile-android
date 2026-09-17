@@ -201,14 +201,14 @@ public class VideoCreative extends VideoCreativeProtocol
 
     @Override
     public void mute() {
-        if (videoCreativeView != null && videoCreativeView.getVolume() != 0) {
+        if (videoCreativeView != null) {
             videoCreativeView.mute();
         }
     }
 
     @Override
     public void unmute() {
-        if (videoCreativeView != null && videoCreativeView.getVolume() == 0) {
+        if (videoCreativeView != null) {
             videoCreativeView.unMute();
         }
     }
