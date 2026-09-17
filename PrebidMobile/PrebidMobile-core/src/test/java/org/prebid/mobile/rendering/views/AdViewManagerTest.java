@@ -245,6 +245,61 @@ public class AdViewManagerTest {
     }
 
     @Test
+    public void creativeDidComplete_DaroFullscreen_NotifiesCompletionBeforeClosing() throws Exception {
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setDaroFullscreenRenderer(true);
+        configuration.setRewarded(true);
+        mockVideoCreativeWithConfiguration(configuration);
+        TransactionManager transactions = mock(TransactionManager.class);
+        when(transactions.getCurrentTransaction()).thenReturn(mock(Transaction.class));
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, transactions);
+        WhiteBox.field(AdViewManager.class, "adConfiguration").set(adViewManager, configuration);
+        WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, mockAdView);
+
+        adViewManager.creativeDidComplete(mockVideoCreative);
+
+        org.mockito.InOrder order = inOrder(mockAdViewListener, mockAdView);
+        order.verify(mockAdViewListener).adCompleted();
+        order.verify(mockAdView).closeInterstitialVideo();
+        verify(mockAdViewListener, times(1)).adCompleted();
+    }
+
+    @Test
+    public void creativeDidComplete_DestroyedByCompletion_DoesNotShowEndCard() throws Exception {
+        assertCompletionCallbackStopsOldCreative(true);
+    }
+
+    @Test
+    public void creativeDidComplete_NewLoadFromCompletion_DoesNotShowOldEndCard() throws Exception {
+        assertCompletionCallbackStopsOldCreative(false);
+    }
+
+    private void assertCompletionCallbackStopsOldCreative(boolean destroy) throws Exception {
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setDaroFullscreenRenderer(true);
+        mockVideoCreativeWithConfiguration(configuration);
+        TransactionManager transactions = mockTransactionWithEndCard();
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, transactions);
+        WhiteBox.field(AdViewManager.class, "adConfiguration").set(adViewManager, configuration);
+        WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, mockAdView);
+        doAnswer(invocation -> {
+            if (destroy) {
+                adViewManager.destroy();
+            } else {
+                adViewManager.loadVideoTransaction(configuration, "<VAST/>");
+            }
+            return null;
+        }).when(mockAdViewListener).adCompleted();
+
+        adViewManager.creativeDidComplete(mockVideoCreative);
+
+        verify(mockAdView, never()).closeInterstitialVideo();
+        verify(transactions, never()).incrementCreativesCounter();
+        verify(mockInterstitialManager, never()).displayAdViewInInterstitial(any(), any(), any());
+        verify(mockAdViewListener, never()).videoCreativePlaybackFinished();
+    }
+
+    @Test
     public void creativeDidComplete_InBannerStillFrame_DoesNotOpenCompanionFullscreen() throws Exception {
         AdUnitConfiguration configuration = new AdUnitConfiguration();
         mockVideoCreativeWithConfiguration(configuration);

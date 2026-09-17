@@ -55,6 +55,7 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
     private static final String TAG = AdViewManager.class.getSimpleName();
 
     private boolean builtInVideoFirstStart = true;
+    private long lifecycleGeneration;
 
     private final InterstitialManager interstitialManager;
 
@@ -178,6 +179,19 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
         // NOTE: This is currently hard-wired to work for video + end card only
         //       To truly support continuous ads in a queue, there would need to be significant changes
         //       in the display layer logic
+        // Closing a Daro fullscreen video can synchronously destroy its SDK listener.
+        // Deliver completion while that listener is still active.
+        boolean completionSentBeforeClose = creative.isVideo()
+                && adConfiguration != null
+                && adConfiguration.isDaroFullscreenRenderer()
+                && !isDaroFullscreenVideoSkip(creative);
+        if (completionSentBeforeClose) {
+            long generation = lifecycleGeneration;
+            adViewListener.adCompleted();
+            if (generation != lifecycleGeneration) {
+                return;
+            }
+        }
         if (creative.isVideo()) {
             handleVideoCreativeComplete(creative);
         }
@@ -187,7 +201,7 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
             resetTransactionState();
         }
 
-        if (!isDaroFullscreenVideoSkip(creative)) {
+        if (!completionSentBeforeClose && !isDaroFullscreenVideoSkip(creative)) {
             adViewListener.adCompleted();
         }
 
@@ -198,6 +212,7 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
     }
 
     public void resetTransactionState() {
+        lifecycleGeneration++;
         hide();
         transactionManager.resetState();
     }
@@ -249,6 +264,7 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
     }
 
     public void destroy() {
+        lifecycleGeneration++;
         if (transactionManager != null) {
             transactionManager.destroy();
         }
@@ -388,18 +404,21 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
     }
 
     public void loadBidTransaction(AdUnitConfiguration adConfiguration, BidResponse bidResponse) {
+        lifecycleGeneration++;
         this.adConfiguration = adConfiguration;
         resetTransactionState();
         transactionManager.fetchBidTransaction(adConfiguration, bidResponse);
     }
 
     public void loadVideoTransaction(AdUnitConfiguration adConfiguration, String vastXml) {
+        lifecycleGeneration++;
         this.adConfiguration = adConfiguration;
         resetTransactionState();
         transactionManager.fetchVideoTransaction(adConfiguration, vastXml);
     }
 
     public void loadCreativeModels(AdUnitConfiguration adConfiguration, CreativeModelsMaker.Result result) {
+        lifecycleGeneration++;
         this.adConfiguration = adConfiguration;
         resetTransactionState();
 
