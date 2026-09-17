@@ -136,6 +136,17 @@ public class CreativeModelsMakerVast extends CreativeModelsMaker {
 
             videoModel.setName(VIDEO_CREATIVE_TAG);
 
+            selectedCreative:
+            for (org.prebid.mobile.rendering.video.vast.Creative creative :
+                    latestVastWrapperParser.getVast().getAds().get(0).getInline().getCreatives()) {
+                if (creative.getLinear() == null) continue;
+                for (org.prebid.mobile.rendering.video.vast.MediaFile file : creative.getLinear().getMediaFiles()) {
+                    if (mediaUrl.equals(file.getValue())) {
+                        videoModel.setVastCreative(creative);
+                        break selectedCreative;
+                    }
+                }
+            }
             videoModel.setMediaUrl(mediaUrl);
             videoModel.setMediaDuration(Utils.getMsFrom(videoDuration));
             videoModel.setSkipOffset(Utils.getMsFrom(skipOffset));

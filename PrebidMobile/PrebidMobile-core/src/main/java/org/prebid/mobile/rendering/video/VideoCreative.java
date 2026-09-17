@@ -221,13 +221,26 @@ public class VideoCreative extends VideoCreativeProtocol
 
     @Override
     public void createOmAdSession() {
+        if (terminalEventHandled) return;
+        if (model.hasInteractiveCreativeFile()) model.trackVastFeatureError(409);
         OmAdSessionManager omAdSessionManager = weakOmAdSessionManager.get();
         if (omAdSessionManager == null) {
             LogUtil.error(TAG, "Error creating AdSession. OmAdSessionManager is null");
+            if (model.getAdVerifications() != null && !model.getAdVerifications().getVerifications().isEmpty()) {
+                model.trackVastFeatureError(410);
+            }
             return;
         }
 
         omAdSessionManager.initVideoAdSession(model.getAdVerifications(), null);
+        if (model.getAdVerifications() != null && model.getAdVerifications().getVerifications() != null) {
+            for (org.prebid.mobile.rendering.video.vast.Verification verification :
+                    model.getAdVerifications().getVerifications()) {
+                if (!verification.isSupportedOmidResource() || !omAdSessionManager.isVideoVerificationReady()) {
+                    model.trackVastFeatureError(410);
+                }
+            }
+        }
         startOmSession();
     }
 

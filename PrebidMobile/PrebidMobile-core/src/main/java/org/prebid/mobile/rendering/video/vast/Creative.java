@@ -30,6 +30,9 @@ public class Creative extends VASTParserBase {
     private final static String VAST_COMPANIONADS = "CompanionAds";
     private final static String VAST_NONLINEARADS = "NonLinearAds";
 
+    private String universalAdId;
+    private String universalAdIdRegistry;
+    private String universalAdIdValue;
     private String id;
     private String sequence;
     private String adID;
@@ -74,11 +77,20 @@ public class Creative extends VASTParserBase {
                 nonLinearAds = new NonLinearAds(p);
                 p.require(XmlPullParser.END_TAG, null, VAST_NONLINEARADS);
             }
+            else if ("UniversalAdId".equals(name)) {
+                universalAdIdRegistry = p.getAttributeValue(null, "idRegistry");
+                universalAdIdValue = p.getAttributeValue(null, "idValue");
+                universalAdId = readText(p);
+            }
             else {
                 skip(p);
             }
         }
     }
+
+    public String getUniversalAdId() { return universalAdId; }
+    public String getUniversalAdIdRegistry() { return universalAdIdRegistry; }
+    public String getUniversalAdIdValue() { return universalAdIdValue; }
 
     public String getId() {
         return id;

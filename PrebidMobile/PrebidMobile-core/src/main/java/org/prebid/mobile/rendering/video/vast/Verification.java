@@ -40,8 +40,12 @@ public class Verification extends VASTParserBase {
             String name = p.getName();
             if (name != null && name.equals(VAST_JS_RESOURCE)) {
                 p.require(XmlPullParser.START_TAG, null, VAST_JS_RESOURCE);
-                this.apiFramework = p.getAttributeValue(null, "apiFramework");
-                this.jsResource = readText(p);
+                String framework = p.getAttributeValue(null, "apiFramework");
+                String resource = readText(p);
+                if (!isSupportedOmidResource()) {
+                    this.apiFramework = framework;
+                    this.jsResource = resource;
+                }
                 p.require(XmlPullParser.END_TAG, null, VAST_JS_RESOURCE);
             }
             else if (name != null && name.equals(VAST_VERIFICATION_PARAMETERS)) {
@@ -53,6 +57,11 @@ public class Verification extends VASTParserBase {
                 skip(p);
             }
         }
+    }
+
+    public boolean isSupportedOmidResource() {
+        return "omid".equalsIgnoreCase(apiFramework) && jsResource != null
+                && (jsResource.startsWith("https://") || jsResource.startsWith("http://"));
     }
 
     public String getVendor() {

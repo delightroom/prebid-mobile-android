@@ -28,6 +28,9 @@ public class MediaFiles extends VASTParserBase
     private final static String VAST_MEDIAFILE = "MediaFile";
 
     private ArrayList<MediaFile> mediaFiles;
+    private boolean interactiveCreativeFile;
+
+    public boolean hasInteractiveCreativeFile() { return interactiveCreativeFile; }
 
 	public MediaFiles(XmlPullParser p) throws XmlPullParserException, IOException
 	{
@@ -50,6 +53,10 @@ public class MediaFiles extends VASTParserBase
 				p.require(XmlPullParser.END_TAG, null, VAST_MEDIAFILE);
 
 			}
+            else if ("InteractiveCreativeFile".equals(name)) {
+                interactiveCreativeFile = true;
+                skip(p);
+            }
 			else
 			{
 				skip(p);

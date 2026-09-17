@@ -34,6 +34,9 @@ public class Linear extends VASTParserBase
 	private final static String VAST_ICONS = "Icons";
 
 	private String skipOffset;
+    private boolean interactiveCreativeFile;
+
+    public boolean hasInteractiveCreativeFile() { return interactiveCreativeFile; }
 
 	private AdParameters adParameters;
 	private Duration duration;
@@ -69,7 +72,9 @@ public class Linear extends VASTParserBase
 			else if (name != null && name.equals(VAST_MEDIAFILES))
 			{
 				p.require(XmlPullParser.START_TAG, null, VAST_MEDIAFILES);
-				mediaFiles = (new MediaFiles(p)).getMediaFiles();
+                MediaFiles parsedFiles = new MediaFiles(p);
+                mediaFiles = parsedFiles.getMediaFiles();
+                interactiveCreativeFile = parsedFiles.hasInteractiveCreativeFile();
 				p.require(XmlPullParser.END_TAG, null, VAST_MEDIAFILES);
 			}
 			else if (name != null && name.equals(VAST_TRACKINGEVENTS))

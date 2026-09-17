@@ -35,6 +35,30 @@ public class VideoCreativeModel extends CreativeModel {
     private HashMap<VideoAdEvent.Event, ArrayList<String>> videoEventUrls = new HashMap<>();
     private String mediaUrl;
     private boolean errorTracked;
+    private final java.util.Set<Integer> featureErrors = new java.util.HashSet<>();
+    private boolean interactiveCreativeFile;
+    private String universalAdId;
+    private String universalAdIdRegistry;
+    private String universalAdIdValue;
+
+    public void setVastCreative(org.prebid.mobile.rendering.video.vast.Creative creative) {
+        universalAdId = creative.getUniversalAdId();
+        universalAdIdRegistry = creative.getUniversalAdIdRegistry();
+        universalAdIdValue = creative.getUniversalAdIdValue();
+        interactiveCreativeFile = creative.getLinear().hasInteractiveCreativeFile();
+    }
+
+    public String getUniversalAdId() { return universalAdId; }
+    public String getUniversalAdIdRegistry() { return universalAdIdRegistry; }
+    public String getUniversalAdIdValue() { return universalAdIdValue; }
+    public boolean hasInteractiveCreativeFile() { return interactiveCreativeFile; }
+
+    // Advisory failures must not consume the terminal playback-error notification.
+    public void trackVastFeatureError(int code) {
+        if (!featureErrors.add(code)) return;
+        org.prebid.mobile.rendering.video.vast.VastErrorTracker.fire(
+                videoEventUrls.get(VideoAdEvent.Event.AD_ERROR), code);
+    }
 
     //interstitial video: media duration
     private long mediaDuration;
