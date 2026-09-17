@@ -37,7 +37,7 @@ import org.robolectric.annotation.Config;
 import java.util.Locale;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 19, qualifiers = "w1920dp-h1080dp")
+@Config(sdk = 23, qualifiers = "w1920dp-h1080dp")
 public class DeviceInfoParameterBuilderTest {
 
     private final int SCREEN_WIDTH = 1920;
@@ -67,7 +67,7 @@ public class DeviceInfoParameterBuilderTest {
         expectedBidRequestDevice.w = SCREEN_WIDTH;
         expectedBidRequestDevice.h = SCREEN_HEIGHT;
         expectedBidRequestDevice.language = Locale.getDefault().getLanguage();
-        expectedBidRequestDevice.osv = "4.4";
+        expectedBidRequestDevice.osv = "6.0.1";
         expectedBidRequestDevice.os = "Android";
         expectedBidRequestDevice.devicetype = Device.DeviceType.TABLET.value;
         expectedBidRequestDevice.model = "robolectric";
@@ -76,6 +76,10 @@ public class DeviceInfoParameterBuilderTest {
         expectedBidRequestDevice.ua = AppInfoManager.getUserAgent();
         expectedBidRequestDevice.ifa = AdvertisingIdManager.getAdvertisingId(ManagersResolver.getInstance().getUserConsentManager());
         expectedBidRequestDevice.lmt = AdvertisingIdManager.isLimitedAdTrackingEnabled() ? 1 : 0;
+
+        if (expectedBidRequestDevice.ifa != null && !expectedBidRequestDevice.ifa.isEmpty()) {
+            expectedBidRequestDevice.getExt().put("ifa_type", "dpid");
+        }
 
         assertJsonEquals(expectedBidRequest.getJsonObject(),
                      adRequestInput.getBidRequest().getJsonObject());

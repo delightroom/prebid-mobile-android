@@ -21,17 +21,22 @@ import android.net.Uri;
 import android.widget.RelativeLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
-import com.google.android.exoplayer2.*;
-import com.google.android.exoplayer2.source.ProgressiveMediaSource;
-import com.google.android.exoplayer2.ui.PlayerView;
-import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
-import com.google.android.exoplayer2.util.Util;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.source.ProgressiveMediaSource;
+import androidx.media3.ui.PlayerView;
+import androidx.media3.datasource.DefaultDataSource;
+import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.common.util.Util;
 import org.prebid.mobile.LogUtil;
 import org.prebid.mobile.api.exceptions.AdException;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
 import org.prebid.mobile.rendering.listeners.VideoCreativeViewListener;
 import org.prebid.mobile.rendering.video.vast.VASTErrorCodes;
 
+@androidx.annotation.OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)
 public class ExoPlayerView extends PlayerView implements VideoPlayerView {
 
     private static final String TAG = "ExoPlayerView";
@@ -45,6 +50,10 @@ public class ExoPlayerView extends PlayerView implements VideoPlayerView {
     private Uri videoUri;
 
     private long vastVideoDuration = -1;
+    private boolean preparingStillFrame;
+    private boolean stillFrameMode;
+    private boolean playbackRequested;
+    private Runnable stillFrameReady;
 
     public ExoPlayerView(
             Context context,
@@ -58,6 +67,7 @@ public class ExoPlayerView extends PlayerView implements VideoPlayerView {
 
         @Override
         public void onPlayerError(PlaybackException error) {
+            stillFrameReady = null;
             videoCreativeViewListener.onFailure(new AdException(
                     AdException.INTERNAL_ERROR,
                     VASTErrorCodes.MEDIA_DISPLAY_ERROR.toString()
@@ -72,12 +82,25 @@ public class ExoPlayerView extends PlayerView implements VideoPlayerView {
             }
             switch (playbackState) {
                 case Player.STATE_READY:
+                    if (preparingStillFrame || (stillFrameMode && !playbackRequested)) {
+                        player.setPlayWhenReady(false);
+                        return;
+                    }
                     player.setPlayWhenReady(true);
                     initUpdateTask();
                     break;
                 case Player.STATE_ENDED:
                     videoCreativeViewListener.onDisplayCompleted();
                     break;
+            }
+        }
+
+        @Override
+        public void onRenderedFirstFrame() {
+            Runnable callback = stillFrameReady;
+            stillFrameReady = null;
+            if (preparingStillFrame && callback != null) {
+                callback.run();
             }
         }
     };
@@ -100,10 +123,32 @@ public class ExoPlayerView extends PlayerView implements VideoPlayerView {
     @Override
     public void start(float initialVolume) {
         LogUtil.debug(TAG, "Called start");
+        preparingStillFrame = false;
+        playbackRequested = true;
+        stillFrameReady = null;
         initLayout();
         initPlayer(initialVolume);
         preparePlayer(true);
         trackInitialStartEvent();
+    }
+
+    /** Prepares a visible first frame without starting playback or VAST playback tracking. */
+    public void prepareStillFrame(@NonNull Runnable onReady) {
+        if (videoUri == null) {
+            videoCreativeViewListener.onFailure(new AdException(
+                    AdException.INTERNAL_ERROR,
+                    VASTErrorCodes.MEDIA_DISPLAY_ERROR.toString()
+            ));
+            return;
+        }
+        preparingStillFrame = true;
+        stillFrameMode = true;
+        stillFrameReady = onReady;
+        initLayout();
+        initPlayer(0);
+        player.setVolume(0);
+        player.setPlayWhenReady(false);
+        preparePlayer(true);
     }
 
     @Override
@@ -141,6 +186,16 @@ public class ExoPlayerView extends PlayerView implements VideoPlayerView {
     @Override
     public void resume() {
         LogUtil.debug(TAG, "Called resume");
+        if (preparingStillFrame) {
+            return;
+        }
+        if (stillFrameMode && player != null) {
+            playbackRequested = true;
+            player.setVolume(0);
+            player.setPlayWhenReady(true);
+            videoCreativeViewListener.onEvent(VideoAdEvent.Event.AD_RESUME);
+            return;
+        }
         preparePlayer(false);
         videoCreativeViewListener.onEvent(VideoAdEvent.Event.AD_RESUME);
     }
@@ -148,8 +203,16 @@ public class ExoPlayerView extends PlayerView implements VideoPlayerView {
     @Override
     public void pause() {
         LogUtil.debug(TAG, "Called pause");
+        if (preparingStillFrame) {
+            return;
+        }
         if (player != null) {
-            player.stop();
+            if (stillFrameMode) {
+                playbackRequested = false;
+                player.setPlayWhenReady(false);
+            } else {
+                player.stop();
+            }
             videoCreativeViewListener.onEvent(VideoAdEvent.Event.AD_PAUSE);
         }
     }
@@ -163,6 +226,7 @@ public class ExoPlayerView extends PlayerView implements VideoPlayerView {
     @Override
     public void destroy() {
         LogUtil.debug(TAG, "Called destroy");
+        stillFrameReady = null;
         killUpdateTask();
         if (player != null) {
             player.stop();
@@ -183,6 +247,7 @@ public class ExoPlayerView extends PlayerView implements VideoPlayerView {
 
     @Override
     public void stop() {
+        stillFrameReady = null;
         if (player != null) {
             player.stop();
             player.clearMediaItems();
@@ -201,7 +266,7 @@ public class ExoPlayerView extends PlayerView implements VideoPlayerView {
             LogUtil.debug(TAG, "Skipping initPlayer(): Player is already initialized.");
             return;
         }
-        player = new SimpleExoPlayer.Builder(getContext()).build();
+        player = new ExoPlayer.Builder(getContext()).build();
         player.addListener(eventListener);
         setPlayer(this.player);
         setUseController(false);
@@ -232,7 +297,7 @@ public class ExoPlayerView extends PlayerView implements VideoPlayerView {
     void preparePlayer(boolean resetPosition) {
         ProgressiveMediaSource extractorMediaSource = buildMediaSource(videoUri);
         if (extractorMediaSource == null || player == null) {
-            LogUtil.debug(TAG, "preparePlayer(): ExtractorMediaSource or SimpleExoPlayer is null. Skipping prepare.");
+            LogUtil.debug(TAG, "preparePlayer(): ExtractorMediaSource or ExoPlayer is null. Skipping prepare.");
             return;
         }
         player.setMediaSource(extractorMediaSource, resetPosition);
@@ -245,7 +310,8 @@ public class ExoPlayerView extends PlayerView implements VideoPlayerView {
         }
         MediaItem mediaItem = new MediaItem.Builder().setUri(uri).build();
         return new ProgressiveMediaSource.Factory(
-                new DefaultDataSourceFactory(getContext(), Util.getUserAgent(getContext(), "PrebidRenderingSDK")))
+                new DefaultDataSource.Factory(getContext(), new DefaultHttpDataSource.Factory()
+                        .setUserAgent(Util.getUserAgent(getContext(), "PrebidRenderingSDK"))))
                 .createMediaSource(mediaItem);
     }
 

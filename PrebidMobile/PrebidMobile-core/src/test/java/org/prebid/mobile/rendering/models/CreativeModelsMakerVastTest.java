@@ -59,7 +59,7 @@ import static org.prebid.mobile.rendering.video.VideoAdEvent.Event.AD_IMPRESSION
 import static org.robolectric.annotation.LooperMode.Mode.LEGACY;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 21, shadows = {MyShadowAsyncTask.class})
+@Config(sdk = 23, shadows = {MyShadowAsyncTask.class})
 @SuppressWarnings("unchecked")
 @LooperMode(LEGACY)
 public class CreativeModelsMakerVastTest {

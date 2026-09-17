@@ -31,7 +31,7 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 19)
+@Config(sdk = 23)
 public class DisplayViewTest {
 
     private DisplayView displayView;

@@ -101,6 +101,10 @@ public class VideoCreativeView extends RelativeLayout {
         exoPlayerView.start(initialVolume);
     }
 
+    public void prepareStillFrame(Runnable onReady) {
+        exoPlayerView.prepareStillFrame(onReady);
+    }
+
     public void stop() {
         exoPlayerView.stop();
     }

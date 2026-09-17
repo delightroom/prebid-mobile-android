@@ -37,7 +37,7 @@ import static org.junit.Assert.*;
 import static org.robolectric.Shadows.shadowOf;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 19)
+@Config(sdk = 23)
 public class CalendarGTE14Test {
     private final static String CALENDAR_FILE = "calendar.txt";
     private final static String CALENDAR_FILE_CHECK_NULL_VALUES = "calendarCheckNullValues.txt";

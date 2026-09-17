@@ -35,7 +35,7 @@ import static org.robolectric.annotation.LooperMode.Mode.LEGACY;
 
 @LooperMode(LEGACY)
 public class BaseSetup {
-    public static final int testSDK = 21;
+    public static final int testSDK = 23;
 
     protected MockWebServer server;
     protected Scheduler uiScheduler, bgScheduler;

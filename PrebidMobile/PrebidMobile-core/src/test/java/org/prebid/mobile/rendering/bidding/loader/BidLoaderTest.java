@@ -53,7 +53,7 @@ import org.robolectric.annotation.Config;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 19)
+@Config(sdk = 23)
 public class BidLoaderTest {
 
     private BidLoader bidLoader;

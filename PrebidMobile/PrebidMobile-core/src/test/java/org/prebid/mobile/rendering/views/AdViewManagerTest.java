@@ -57,7 +57,7 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 19)
+@Config(sdk = 23)
 public class AdViewManagerTest {
     private Context context;
     private AdViewManager adViewManager;
@@ -242,6 +242,24 @@ public class AdViewManagerTest {
 
         adViewManager.creativeDidComplete(mockVideoCreative);
         verify(mockAdViewListener, times(2)).adCompleted();
+    }
+
+    @Test
+    public void creativeDidComplete_InBannerStillFrame_DoesNotOpenCompanionFullscreen() throws Exception {
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        mockVideoCreativeWithConfiguration(configuration);
+        TransactionManager transactions = mockTransactionWithEndCard();
+        VideoView banner = mock(VideoView.class);
+        when(banner.isPrepareStillFrameEnabled()).thenReturn(true);
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, transactions);
+        WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, banner);
+
+        adViewManager.creativeDidComplete(mockVideoCreative);
+
+        verify(transactions, never()).incrementCreativesCounter();
+        verify(mockInterstitialManager, never()).displayAdViewInInterstitial(any(), any());
+        verify(mockInterstitialManager, never()).displayAdViewInInterstitial(any(), any(), any());
+        verify(mockAdViewListener).videoCreativePlaybackFinished();
     }
 
     @Test
@@ -739,6 +757,28 @@ public class AdViewManagerTest {
         ArgumentCaptor exceptionCaptor = ArgumentCaptor.forClass(AdException.class);
         verify(mockAdViewListener).failedToLoad((AdException) exceptionCaptor.capture());
         assertEquals("SDK internal error: Error message", ((AdException) exceptionCaptor.getValue()).getMessage());
+    }
+
+    @Test
+    public void inBannerLoadDoesNotStartVideoBeforeFirstFrameCallback() throws Exception {
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setBuiltInVideo(true);
+        mockVideoCreativeWithConfiguration(configuration);
+        when(mockVideoCreative.isResolved()).thenReturn(true);
+        when(mockVideoCreative.getCreativeView()).thenReturn(mockVideoCreativeView);
+        TransactionManager transactions = mockTransactionWithoutEndCard();
+        VideoView banner = mock(VideoView.class);
+        when(banner.isPrepareStillFrameEnabled()).thenReturn(true);
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, transactions);
+        WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, banner);
+        WhiteBox.field(AdViewManager.class, "adConfiguration").set(adViewManager, configuration);
+
+        adViewManager.onFetchingCompleted(transactions.getCurrentTransaction());
+
+        verify(mockAdViewListener).adLoaded(any(AdDetails.class));
+        verify(mockVideoCreative, never()).display();
+        adViewManager.show();
+        verify(mockVideoCreative).display();
     }
 
     @Test

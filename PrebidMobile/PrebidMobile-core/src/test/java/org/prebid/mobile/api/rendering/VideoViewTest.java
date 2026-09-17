@@ -47,7 +47,7 @@ import static org.mockito.Mockito.*;
 import static org.prebid.mobile.api.rendering.VideoView.State.*;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 19)
+@Config(sdk = 23)
 public class VideoViewTest {
 
     private static final VisibilityTrackerResult VISIBLE_RESULT = new VisibilityTrackerResult(
@@ -86,6 +86,64 @@ public class VideoViewTest {
         adViewManagerListener = WhiteBox.getInternalState(videoView, "onAdViewManagerListener");
 
         videoView.setVideoViewListener(mockVideoViewListener);
+    }
+
+    @Test
+    public void inBannerLoadKeepsCreativeMutedAfterInitialVolumeIsApplied() {
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        videoView.setPrepareStillFrame(true);
+        videoView.loadAd(configuration, "<VAST/>");
+        org.junit.Assert.assertTrue(configuration.isMuted());
+        verify(mockAdViewManager).loadVideoTransaction(configuration, "<VAST/>");
+    }
+
+    @Test
+    public void inBannerNetworkPolicyGatesEveryPlaybackEntry() {
+        videoView.setPrepareStillFrame(true);
+        videoView.setPlaybackAllowed(false);
+        changeVideoViewState(PLAYBACK_NOT_STARTED);
+        visibilityTrackerListener.onVisibilityChanged(VISIBLE_RESULT);
+        videoView.play();
+        videoView.resume();
+        verify(mockAdViewManager, never()).show();
+        verify(mockAdViewManager, never()).resume();
+
+        videoView.setPlaybackAllowed(true);
+        verify(mockAdViewManager).show();
+        videoView.setPlaybackAllowed(false);
+        verify(mockAdViewManager).pause();
+        videoView.resume();
+        verify(mockAdViewManager, never()).resume();
+
+        visibilityTrackerListener.onVisibilityChanged(INVISIBLE_RESULT);
+        videoView.setPlaybackAllowed(true);
+        verify(mockAdViewManager, never()).resume();
+        visibilityTrackerListener.onVisibilityChanged(VISIBLE_RESULT);
+        verify(mockAdViewManager).resume();
+    }
+
+    @Test
+    public void inBannerPreparationDoesNotReportDisplayImpression() {
+        videoView.setPrepareStillFrame(true);
+        changeVideoViewState(PLAYBACK_NOT_STARTED);
+        when(mockAdViewManager.isNotShowingEndCard()).thenReturn(true);
+        when(mockAdViewManager.hasEndCard()).thenReturn(true);
+        adViewManagerListener.viewReadyForImmediateDisplay(new android.view.View(context));
+        verify(mockVideoViewListener, never()).onDisplayed(videoView);
+    }
+
+    @Test
+    public void inBannerStillFrameEnablesClickOnlyWhenPlaybackStarts() {
+        videoView.setPrepareStillFrame(true);
+        videoView.setVideoPlayerClick(true);
+        VideoCreativeView creative = mock(VideoCreativeView.class);
+        changeVideoViewState(PLAYBACK_NOT_STARTED);
+        adViewManagerListener.viewReadyForImmediateDisplay(creative);
+        verify(creative, never()).enableVideoPlayerClick();
+
+        changeVideoViewState(PLAYING);
+        adViewManagerListener.viewReadyForImmediateDisplay(creative);
+        verify(creative).enableVideoPlayerClick();
     }
 
     @Test

@@ -87,7 +87,7 @@ import org.robolectric.shadows.ShadowLocationManager;
 import java.lang.reflect.Field;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 19)
+@Config(sdk = 23)
 @LooperMode(LEGACY)
 public class BaseJSInterfaceTest {
 
@@ -180,13 +180,13 @@ public class BaseJSInterfaceTest {
     }
 
     @Test
-    public void getDefaultPositionTest() {
+    public void getDefaultPositionTest() throws Exception {
         assertEquals("{}", spyBaseJSInterface.getDefaultPosition());
 
         final MraidScreenMetrics screenMetrics = spyBaseJSInterface.getScreenMetrics();
         screenMetrics.setDefaultPosition(new Rect(0, 0, 0, 0));
 
-        assertEquals("{\"x\":0,\"width\":0,\"y\":0,\"height\":0}", spyBaseJSInterface.getDefaultPosition());
+        org.prebid.mobile.test.utils.ResourceUtils.assertJsonEquals(new org.json.JSONObject("{\"x\":0,\"width\":0,\"y\":0,\"height\":0}"), new org.json.JSONObject(spyBaseJSInterface.getDefaultPosition()));
     }
 
     @Test
@@ -348,9 +348,9 @@ public class BaseJSInterfaceTest {
     }
 
     @Test
-    public void getCurrentPositionTest() {
+    public void getCurrentPositionTest() throws Exception {
         String currentPosition = spyBaseJSInterface.getCurrentPosition();
-        assertEquals("{\"x\":0,\"width\":0,\"y\":0,\"height\":0}", currentPosition);
+        org.prebid.mobile.test.utils.ResourceUtils.assertJsonEquals(new org.json.JSONObject("{\"x\":0,\"width\":0,\"y\":0,\"height\":0}"), new org.json.JSONObject(currentPosition));
 
         when(mockWebViewBase.getGlobalVisibleRect(any(Rect.class))).then(invocation -> {
             Rect argumentRect = invocation.getArgument(0);

@@ -56,7 +56,7 @@ import static org.mockito.Mockito.*;
 import static org.robolectric.annotation.LooperMode.Mode.LEGACY;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 19)
+@Config(sdk = 23)
 public class InterstitialManagerTest {
 
     private Context context;

@@ -58,12 +58,25 @@ public class VideoView extends BaseAdView {
 
     private boolean enableVideoPlayerClick;
     private boolean enableAutoPlay = true;
+    private boolean prepareStillFrame;
+    private boolean playbackAllowed = true;
+    private boolean visibleForPlayback;
+    private boolean destroyed;
 
     //region ========== Listener Area
 
     private final AdViewManagerListener onAdViewManagerListener = new AdViewManagerListener() {
         @Override
         public void adLoaded(final AdDetails adDetails) {
+            if (prepareStillFrame) {
+                adViewManager.prepareVideoStillFrame(() -> {
+                    if (destroyed) return;
+                    changeState(State.PLAYBACK_NOT_STARTED);
+                    listener.onLoaded(VideoView.this, adDetails);
+                    startVisibilityTracking();
+                });
+                return;
+            }
             listener.onLoaded(VideoView.this, adDetails);
             changeState(State.PLAYBACK_NOT_STARTED);
             if (enableAutoPlay) {
@@ -73,7 +86,7 @@ public class VideoView extends BaseAdView {
 
         @Override
         public void viewReadyForImmediateDisplay(View view) {
-            if (adViewManager.isNotShowingEndCard()) {
+            if (adViewManager.isNotShowingEndCard() && (!prepareStillFrame || isInState(State.PLAYING))) {
                 listener.onDisplayed(VideoView.this);
             }
             removeAllViews();
@@ -95,7 +108,7 @@ public class VideoView extends BaseAdView {
             changeState(State.PLAYBACK_FINISHED);
             listener.onPlayBackCompleted(VideoView.this);
 
-            if (adViewManager.isNotShowingEndCard()) {
+            if (!prepareStillFrame && adViewManager.isNotShowingEndCard()) {
                 showWatchAgain();
             }
         }
@@ -152,6 +165,7 @@ public class VideoView extends BaseAdView {
         AdUnitConfiguration adConfiguration,
         String vastXml
     ) {
+        if (prepareStillFrame) adConfiguration.setIsMuted(true);
         stopVisibilityTracking();
         changeState(State.UNDEFINED);
 
@@ -160,6 +174,7 @@ public class VideoView extends BaseAdView {
 
     @Override
     public void destroy() {
+        destroyed = true;
         super.destroy();
         stopVisibilityTracking();
 
@@ -194,6 +209,21 @@ public class VideoView extends BaseAdView {
         }
     }
 
+    public boolean isPrepareStillFrameEnabled() {
+        return prepareStillFrame;
+    }
+
+    public void setPrepareStillFrame(boolean enabled) {
+        prepareStillFrame = enabled;
+    }
+
+    public void setPlaybackAllowed(boolean allowed) {
+        playbackAllowed = allowed;
+        if (prepareStillFrame && !destroyed) {
+            updatePlaybackVisibility();
+        }
+    }
+
     public void pause() {
         if (!canPause()) {
             LogUtil.debug(TAG, "pause() can't pause " + videoViewState);
@@ -205,6 +235,7 @@ public class VideoView extends BaseAdView {
     }
 
     public void resume() {
+        if (prepareStillFrame && (!playbackAllowed || !visibleForPlayback || destroyed)) return;
         if (!canResume()) {
             LogUtil.debug(TAG, "resume() can't resume " + videoViewState);
             return;
@@ -215,6 +246,7 @@ public class VideoView extends BaseAdView {
     }
 
     public void play() {
+        if (prepareStillFrame && (!playbackAllowed || !visibleForPlayback || destroyed)) return;
         if (!canPlay()) {
             LogUtil.debug(TAG, "play() can't play " + videoViewState);
             return;
@@ -274,10 +306,10 @@ public class VideoView extends BaseAdView {
     private void showVideoCreative(View view) {
         VideoCreativeView videoCreativeView = (VideoCreativeView) view;
 
-        if (enableVideoPlayerClick) {
+        if (enableVideoPlayerClick && (!prepareStillFrame || isInState(State.PLAYING))) {
             videoCreativeView.enableVideoPlayerClick();
         }
-        videoCreativeView.showVolumeControls();
+        if (!prepareStillFrame) videoCreativeView.showVolumeControls();
         addVideoControlObstruction(videoCreativeView.getVolumeControlView(), "Volume button");
 
         addView(view);
@@ -354,7 +386,12 @@ public class VideoView extends BaseAdView {
     }
 
     private void handleVisibilityChange(VisibilityTrackerResult result) {
-        final boolean isVisible = result.isVisible();
+        visibleForPlayback = result.isVisible();
+        updatePlaybackVisibility();
+    }
+
+    private void updatePlaybackVisibility() {
+        final boolean isVisible = visibleForPlayback && (!prepareStillFrame || playbackAllowed) && !destroyed;
 
         if (isVisible && canPlay()) {
             play();
@@ -366,6 +403,7 @@ public class VideoView extends BaseAdView {
     }
 
     private void handlePlaybackBasedOnVisibility(boolean isVisible) {
+        if (prepareStillFrame) isVisible = isVisible && playbackAllowed && !destroyed;
         if (!isVisible && canPause()) {
             adViewManager.pause();
             changeState(State.PAUSED_AUTO);

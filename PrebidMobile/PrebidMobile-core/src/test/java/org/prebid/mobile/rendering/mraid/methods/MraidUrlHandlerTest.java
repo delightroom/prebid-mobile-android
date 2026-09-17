@@ -34,7 +34,7 @@ import java.util.ArrayList;
 import static org.mockito.Mockito.*;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 19)
+@Config(sdk = 23)
 public class MraidUrlHandlerTest {
 
     private MraidUrlHandler mraidUrlHandler;
