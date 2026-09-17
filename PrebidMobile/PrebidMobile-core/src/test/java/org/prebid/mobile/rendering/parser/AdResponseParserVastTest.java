@@ -784,7 +784,7 @@ public class AdResponseParserVastTest {
             vastParseError.printStackTrace();
             error = vastParseError;
         }
-        assertNull(vastParserHelper.getVast().getAds());
+        assertTrue(vastParserHelper.getVast().getAds().isEmpty());
         assertNull(error);
         assertNull(vastParserHelper.getVastUrl());
     }

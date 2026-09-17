@@ -123,6 +123,7 @@ public class VideoCreative extends VideoCreativeProtocol
 
     @Override
     public void onFailure(AdException error) {
+        if (!beginTerminalEvent()) return;
         // ad -> inline -> error
         model.trackVideoEvent(VideoAdEvent.Event.AD_ERROR);
         getResolutionListener().creativeFailed(error);
@@ -247,6 +248,7 @@ public class VideoCreative extends VideoCreativeProtocol
 
     @Override
     public void destroy() {
+        terminalEventHandled = true;
         super.destroy();
 
         if (videoCreativeView != null) {
@@ -486,6 +488,8 @@ public class VideoCreative extends VideoCreativeProtocol
                 return;
             }
 
+            if (!videoCreative.beginTerminalEvent()) return;
+            videoCreative.model.trackVastError(400);
             videoCreative.getResolutionListener().creativeFailed(new AdException(AdException.INTERNAL_ERROR, "Preloading failed: " + error));
         }
     }

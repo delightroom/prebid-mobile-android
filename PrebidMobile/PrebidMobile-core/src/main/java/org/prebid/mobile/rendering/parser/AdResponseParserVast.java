@@ -479,6 +479,32 @@ public class AdResponseParserVast extends AdResponseParserBase {
         return null;
     }
 
+    // Keep only the selected ad's errors; sibling ads did not participate in this load.
+    public ArrayList<String> getErrorUrls() {
+        ArrayList<String> urls = new ArrayList<>();
+        if (vast.getError() != null) {
+            urls.add(vast.getError().getValue());
+        }
+        Ad selected = vast.getAds().isEmpty() ? null : vast.getAds().get(0);
+        for (Ad ad : vast.getAds()) {
+            if (ad.getWrapper() != null && ad.getWrapper().getVastUrl() != null) {
+                selected = ad;
+                break;
+            }
+        }
+        if (selected != null) {
+            if (selected.getWrapper() != null && selected.getWrapper().getError() != null) {
+                urls.add(selected.getWrapper().getError().getValue());
+            } else if (selected.getInline() != null && selected.getInline().getError() != null) {
+                urls.add(selected.getInline().getError().getValue());
+            }
+        }
+        if (wrappedVASTXml != null) {
+            urls.addAll(wrappedVASTXml.getErrorUrls());
+        }
+        return urls;
+    }
+
     public String getError(AdResponseParserVast parserVast, int index) {
 
         Ad ad = parserVast.vast.getAds().get(index);

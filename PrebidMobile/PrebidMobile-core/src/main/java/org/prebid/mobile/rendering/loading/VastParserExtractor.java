@@ -29,7 +29,6 @@ import org.prebid.mobile.rendering.networking.ResponseHandler;
 import org.prebid.mobile.rendering.networking.modelcontrollers.AsyncVastLoader;
 import org.prebid.mobile.rendering.parser.AdResponseParserBase;
 import org.prebid.mobile.rendering.parser.AdResponseParserVast;
-import org.prebid.mobile.rendering.utils.helpers.Utils;
 import org.prebid.mobile.rendering.video.vast.VASTErrorCodes;
 
 public class VastParserExtractor {
@@ -45,6 +44,7 @@ public class VastParserExtractor {
     private AdResponseParserVast latestVastWrapperParser;
 
     private int vastWrapperCount;
+    private boolean finished;
 
     private final ResponseHandler responseHandler = new ResponseHandler() {
         @Override
@@ -73,6 +73,7 @@ public class VastParserExtractor {
     }
 
     public void cancel() {
+        finished = true;
         if (asyncVastLoader != null) {
             asyncVastLoader.cancelTask();
         }
@@ -83,11 +84,7 @@ public class VastParserExtractor {
     }
 
     private void performVastUnwrap(String vast) {
-        if (!Utils.isVast(vast)) {
-            final AdException adException = new AdException(AdException.INTERNAL_ERROR, VASTErrorCodes.VAST_SCHEMA_ERROR.toString());
-            listener.onResult(createExtractorFailureResult(adException));
-            return;
-        }
+        if (finished) return;
 
         vastWrapperCount++;
 
@@ -100,7 +97,7 @@ public class VastParserExtractor {
             LogUtil.error(TAG, "AdResponseParserVast creation failed: " + Log.getStackTraceString(e));
 
             final AdException adException = new AdException(AdException.INTERNAL_ERROR, e.getMessage());
-            listener.onResult(createExtractorFailureResult(adException));
+            fail(adException, 100);
             return;
         }
 
@@ -114,10 +111,9 @@ public class VastParserExtractor {
             LogUtil.debug(TAG, "Unwrapping VAST Wrapper");
             if (!latestVastWrapperParser.allowsAdditionalWrappers()
                     && !TextUtils.isEmpty(adResponseParserVast.getVastUrl())) {
-                listener.onResult(createExtractorFailureResult(new AdException(
-                        AdException.INTERNAL_ERROR,
-                        VASTErrorCodes.WRAPPER_LIMIT_REACH_ERROR.toString()
-                )));
+                latestVastWrapperParser.setWrapper(adResponseParserVast);
+                fail(new AdException(AdException.INTERNAL_ERROR,
+                        VASTErrorCodes.WRAPPER_LIMIT_REACH_ERROR.toString()), 302);
                 return;
             }
             latestVastWrapperParser.setWrapper(adResponseParserVast);
@@ -133,8 +129,7 @@ public class VastParserExtractor {
                         AdException.INTERNAL_ERROR,
                         VASTErrorCodes.WRAPPER_LIMIT_REACH_ERROR.toString()
                 );
-                final VastExtractorResult extractorFailureResult = createExtractorFailureResult(adException);
-                listener.onResult(extractorFailureResult);
+                fail(adException, 302);
                 vastWrapperCount = 0;
                 return;
             }
@@ -142,6 +137,12 @@ public class VastParserExtractor {
             asyncVastLoader.loadVast(vastUrl, responseHandler);
         }
         else {
+            if (adResponseParserVast.getVast().getAds().isEmpty()) {
+                fail(new AdException(AdException.INTERNAL_ERROR,
+                        VASTErrorCodes.NO_AD_IN_WRAPPER_ERROR.toString()), 303);
+                return;
+            }
+            finished = true;
             final AdResponseParserBase[] parserArray = {rootVastParser, latestVastWrapperParser};
             listener.onResult(new VastExtractorResult(parserArray));
         }
@@ -151,7 +152,16 @@ public class VastParserExtractor {
         LogUtil.error(TAG, "Invalid ad response: " + msg);
 
         final AdException adException = new AdException(AdException.INTERNAL_ERROR, "Invalid ad response: " + msg);
-        listener.onResult(createExtractorFailureResult(adException));
+        fail(adException, 301);
+    }
+
+    private void fail(AdException exception, int code) {
+        if (finished) return;
+        finished = true;
+        if (rootVastParser != null) {
+            org.prebid.mobile.rendering.video.vast.VastErrorTracker.fire(rootVastParser.getErrorUrls(), code);
+        }
+        listener.onResult(createExtractorFailureResult(exception));
     }
 
     @VisibleForTesting
