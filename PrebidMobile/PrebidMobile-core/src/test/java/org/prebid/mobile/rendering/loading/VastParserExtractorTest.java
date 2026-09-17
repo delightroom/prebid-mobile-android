@@ -104,6 +104,51 @@ public class VastParserExtractorTest {
     }
 
     @Test
+    public void disallowedAdditionalWrapperDoesNotFetchOrRender() {
+        for (String value : new String[]{"false", "0"}) {
+            VastParserExtractor.Listener listener = mock(VastParserExtractor.Listener.class);
+            AsyncVastLoader loader = mock(AsyncVastLoader.class);
+            VastParserExtractor extractor = new VastParserExtractor(listener);
+            try {
+                WhiteBox.field(VastParserExtractor.class, "asyncVastLoader").set(extractor, loader);
+            } catch (IllegalAccessException error) {
+                throw new AssertionError(error);
+            }
+            extractor.extract(wrapper(" followAdditionalWrappers=\"" + value + "\"", "first"));
+            extractor.extract(wrapper("", "second"));
+            verify(loader).loadVast(eq("https://example.test/first"), any());
+            verifyNoMoreInteractions(loader);
+            ArgumentCaptor<VastExtractorResult> result = ArgumentCaptor.forClass(VastExtractorResult.class);
+            verify(listener).onResult(result.capture());
+            assertTrue(result.getValue().hasException());
+        }
+    }
+
+    @Test
+    public void disallowedAdditionalWrapperStillAcceptsInline() {
+        vastParserExtractor.extract(wrapper(" followAdditionalWrappers=\"false\"", "first"));
+        vastParserExtractor.extract(defaultResponseString);
+        ArgumentCaptor<VastExtractorResult> result = ArgumentCaptor.forClass(VastExtractorResult.class);
+        verify(mockListener).onResult(result.capture());
+        assertFalse(result.getValue().hasException());
+    }
+
+    @Test
+    public void omittedWrapperRestrictionContinuesUnwrapping() {
+        vastParserExtractor.extract(wrapper("", "first"));
+        vastParserExtractor.extract(wrapper("", "second"));
+        verify(mockAsyncVastLoader).loadVast(eq("https://example.test/first"), any());
+        verify(mockAsyncVastLoader).loadVast(eq("https://example.test/second"), any());
+        verifyNoInteractions(mockListener);
+    }
+
+    private static String wrapper(String attributes, String path) {
+        return "<VAST version=\"3.0\"><Ad><Wrapper" + attributes + "><AdSystem>Fixture</AdSystem>"
+            + "<VASTAdTagURI>https://example.test/" + path + "</VASTAdTagURI>"
+            + "<Impression>https://example.test/impression</Impression><Creatives/></Wrapper></Ad></VAST>";
+    }
+
+    @Test
     public void cancel_CancelRunningTask() {
         vastParserExtractor.cancel();
 

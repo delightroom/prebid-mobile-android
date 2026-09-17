@@ -209,6 +209,17 @@ public class AdResponseParserVast extends AdResponseParserBase {
         return urls;
     }
 
+    public boolean allowsAdditionalWrappers() {
+        if (vast.getAds() != null) {
+            for (Ad ad : vast.getAds()) {
+                if (ad.getWrapper() != null && ad.getWrapper().getVastUrl() != null) {
+                    return ad.getWrapper().allowsAdditionalWrappers();
+                }
+            }
+        }
+        return true;
+    }
+
     public String getVastUrl() {
         if (vast.getAds() != null)
             for (Ad ad : vast.getAds()) {

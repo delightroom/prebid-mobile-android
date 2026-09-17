@@ -97,6 +97,10 @@ public class Wrapper extends VASTParserBase {
         }
     }
 
+    public boolean allowsAdditionalWrappers() {
+        return !"false".equals(followAdditionalWrappers) && !"0".equals(followAdditionalWrappers);
+    }
+
     public String getAllowMultipleAds() {
         return allowMultipleAds;
     }

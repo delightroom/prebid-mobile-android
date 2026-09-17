@@ -112,6 +112,14 @@ public class VastParserExtractor {
         } else {
             // Otherwise, this is the result of unwrapping a Wrapper.
             LogUtil.debug(TAG, "Unwrapping VAST Wrapper");
+            if (!latestVastWrapperParser.allowsAdditionalWrappers()
+                    && !TextUtils.isEmpty(adResponseParserVast.getVastUrl())) {
+                listener.onResult(createExtractorFailureResult(new AdException(
+                        AdException.INTERNAL_ERROR,
+                        VASTErrorCodes.WRAPPER_LIMIT_REACH_ERROR.toString()
+                )));
+                return;
+            }
             latestVastWrapperParser.setWrapper(adResponseParserVast);
         }
 
