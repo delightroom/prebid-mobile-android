@@ -205,14 +205,11 @@ public class AdWebViewClient extends WebViewClient {
 
         loadingFinished = false;
 
-        String targetUrl = webViewBase.getTargetUrl();
-        url = org.prebid.mobile.rendering.utils.url.action.DeepLinkPlusAction.withOriginalFallback(targetUrl, url);
-
         if (webViewBase.canHandleClick()) {
             loadingFinished = true;
             urls.clear();
 
-            //all(generally non-mraid) comes here - open/click here
+            // MraidController applies the target once and keeps this original URL as fallback.
             webViewBase.mraidListener.openExternalLink(url);
         }
     }

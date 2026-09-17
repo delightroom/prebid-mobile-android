@@ -101,10 +101,7 @@ public class ExternalViewerUtils {
     public static void launchApplicationUrl(Context context, Uri uri)
     throws ActionNotResolvedException {
         Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-        if (!isActivityCallable(context, intent)) {
-            throw new ActionNotResolvedException("launchApplicationUrl: Failure. No activity was found to handle action for " + uri);
-        }
-
+        // Package visibility can hide an installed handler; the launch result is authoritative.
         launchApplicationIntent(context, intent);
     }
 

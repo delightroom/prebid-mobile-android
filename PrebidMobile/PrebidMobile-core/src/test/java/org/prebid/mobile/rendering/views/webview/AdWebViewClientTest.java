@@ -102,4 +102,38 @@ public class AdWebViewClientTest {
         verify(mockListener).openExternalLink(TEST_URL);
         assertEquals(true, returnValue);
     }
+    @Test
+    public void htmlAndMraidClicksComposeDirectFallbackOnce() throws Exception {
+        String original = "https://example.com/original?a=1&b=2";
+        String primary = "deeplink+://navigate?primaryUrl=missingapp%3A%2F%2Fitem";
+        String explicit = primary + "&fallbackUrl=https%3A%2F%2Fexample.com%2Fexplicit";
+        for (String target : new String[] {null, primary, explicit}) {
+            WebViewBase webView = mock(WebViewBase.class);
+            when(webView.isClicked()).thenReturn(true);
+            when(webView.canHandleClick()).thenReturn(true);
+            when(webView.getTargetUrl()).thenReturn(target);
+            org.prebid.mobile.rendering.mraid.methods.MraidController controller =
+                    new org.prebid.mobile.rendering.mraid.methods.MraidController(
+                            mock(org.prebid.mobile.rendering.views.interstitial.InterstitialManager.class));
+            org.prebid.mobile.rendering.mraid.methods.MraidUrlHandler handler =
+                    mock(org.prebid.mobile.rendering.mraid.methods.MraidUrlHandler.class);
+            org.prebid.mobile.test.utils.WhiteBox.field(controller.getClass(), "mraidUrlHandler").set(controller, handler);
+            webView.mraidListener = mock(MraidEventsManager.MraidListener.class);
+            doAnswer(call -> {
+                controller.open(webView, call.getArgument(0), 7);
+                return null;
+            }).when(webView.mraidListener).openExternalLink(anyString());
+
+            adWebViewClient.shouldOverrideUrlLoading(webView, original);
+            String expected = target == null ? original : primary.equals(target)
+                    ? primary + "&fallbackUrl=https%3A%2F%2Fexample.com%2Foriginal%3Fa%3D1%26b%3D2"
+                    : explicit;
+            verify(handler).open(expected, 7);
+
+            clearInvocations(handler);
+            controller.open(webView, original, 7);
+            verify(handler).open(expected, 7);
+        }
+    }
+
 }

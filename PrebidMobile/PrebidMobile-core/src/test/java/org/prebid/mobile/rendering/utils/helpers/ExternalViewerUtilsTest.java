@@ -123,4 +123,22 @@ public class ExternalViewerUtilsTest {
         verify(mockContext).startActivity(any(Intent.class));
         verify(mockResultListener).onSuccess(OnBrowserActionResultListener.BrowserActionResult.INTERNAL_BROWSER);
     }
+    @Test
+    public void launchApplicationUrlDoesNotRejectHiddenInstalledApp() throws Exception {
+        PackageManager manager = mock(PackageManager.class);
+        when(mockContext.getPackageManager()).thenReturn(manager);
+        when(manager.queryIntentActivities(any(Intent.class), anyInt())).thenReturn(Collections.emptyList());
+        ExternalViewerUtils.launchApplicationUrl(mockContext, Uri.parse("installedapp://item"));
+        org.mockito.ArgumentCaptor<Intent> intent = org.mockito.ArgumentCaptor.forClass(Intent.class);
+        verify(mockContext).startActivity(intent.capture());
+        org.junit.Assert.assertEquals("installedapp://item", intent.getValue().getDataString());
+        assertTrue((intent.getValue().getFlags() & Intent.FLAG_ACTIVITY_NEW_TASK) != 0);
+    }
+
+    @Test(expected = ActionNotResolvedException.class)
+    public void launchApplicationUrlReportsMissingAppAfterLaunchAttempt() throws Exception {
+        doThrow(new android.content.ActivityNotFoundException()).when(mockContext).startActivity(any(Intent.class));
+        ExternalViewerUtils.launchApplicationUrl(mockContext, Uri.parse("missingapp://item"));
+    }
+
 }

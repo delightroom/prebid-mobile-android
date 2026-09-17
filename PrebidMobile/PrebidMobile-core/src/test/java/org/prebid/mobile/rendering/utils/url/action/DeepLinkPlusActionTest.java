@@ -16,6 +16,7 @@
 
 package org.prebid.mobile.rendering.utils.url.action;
 
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -175,6 +176,7 @@ public class DeepLinkPlusActionTest {
 
     @Test
     public void performActionWithInvalidPrimaryUrlAndEmptyFallback_ThrowException() {
+        doThrow(new ActivityNotFoundException()).when(mockContext).startActivity(any(Intent.class));
         Uri emptyFallbackDeepLink = Uri.parse(NO_FALLBACK_DEEPLINK_EXAMPLE);
 
         String expectedMessage = "Unable to handle 'primaryUrl' for Deeplink+ and 'fallbackUrl' was missing.";
@@ -191,6 +193,7 @@ public class DeepLinkPlusActionTest {
 
     @Test
     public void performActionWithInvalidPrimaryUrlAndFallbackDeepLinkPlusUrl_ThrowException() {
+        doThrow(new ActivityNotFoundException()).when(mockContext).startActivity(any(Intent.class));
         Uri invalidFallbackDeepLink = Uri.parse(INVALID_NESTED_DEEPLINK_IN_FALLBACK_URL);
 
         String expectedMessage = "Deeplink+ URL had another Deeplink+ URL as the 'fallbackUrl'.";
@@ -208,6 +211,7 @@ public class DeepLinkPlusActionTest {
     @Test
     public void performActionWithInvalidPrimaryUrlAndValidFallback_ExecuteUrlHandler()
     throws ActionNotResolvedException {
+        doThrow(new ActivityNotFoundException()).when(mockContext).startActivity(any(Intent.class));
         Uri validFallbackDeepLinkUri = Uri.parse(FULL_DEEPLINK_EXAMPLE);
         String fallbackUrl = validFallbackDeepLinkUri.getQueryParameter(QUERY_FALLBACK_URL);
         List<String> fallbackTrackingUrls = validFallbackDeepLinkUri.getQueryParameters(QUERY_FALLBACK_TRACKING_URL);
