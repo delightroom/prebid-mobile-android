@@ -118,7 +118,7 @@ public class CreativeModelsMakerVast extends CreativeModelsMaker {
             }
             final String vastClickThroughUrl = rootVastParser.getClickThroughUrl(rootVastParser, 0);
             final String effectiveClickThroughUrl = Utils.isNotBlank(adConfiguration.getDaroClickThroughUrl())
-                    ? adConfiguration.getDaroClickThroughUrl()
+                    ? org.prebid.mobile.rendering.utils.url.action.DeepLinkPlusAction.withOriginalFallback(adConfiguration.getDaroClickThroughUrl(), vastClickThroughUrl)
                     : vastClickThroughUrl;
             final String videoDuration = latestVastWrapperParser.getVideoDuration(latestVastWrapperParser, 0);
             final String skipOffset = latestVastWrapperParser.getSkipOffset(latestVastWrapperParser, 0);

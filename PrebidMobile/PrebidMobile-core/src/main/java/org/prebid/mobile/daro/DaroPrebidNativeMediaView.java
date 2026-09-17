@@ -20,6 +20,7 @@ final class DaroPrebidNativeMediaView extends FrameLayout {
     private static final int DEFAULT_HEIGHT = 250;
 
     private final String vastXml;
+    @Nullable private final String clickThroughUrl;
     @Nullable
     private DaroPrebidNativeMedia.Listener listener;
     private VideoView videoView;
@@ -29,10 +30,12 @@ final class DaroPrebidNativeMediaView extends FrameLayout {
     DaroPrebidNativeMediaView(
         @NonNull Context context,
         @NonNull String vastXml,
-        @Nullable DaroPrebidNativeMedia.Listener listener
+        @Nullable DaroPrebidNativeMedia.Listener listener,
+        @Nullable String clickThroughUrl
     ) {
         super(context);
         this.vastXml = vastXml;
+        this.clickThroughUrl = clickThroughUrl;
         this.listener = listener;
         setVisibility(View.GONE);
     }
@@ -78,6 +81,7 @@ final class DaroPrebidNativeMediaView extends FrameLayout {
         try {
             AdUnitConfiguration configuration = new AdUnitConfiguration();
             configuration.setAdFormat(AdFormat.VAST);
+            configuration.setDaroClickThroughUrl(clickThroughUrl);
             configuration.addSize(resolveSize());
 
             VideoView view = new VideoView(getContext(), configuration);

@@ -37,6 +37,15 @@ public class DeepLinkPlusAction implements UrlAction {
     static final String QUERY_FALLBACK_URL = "fallbackUrl";
     static final String QUERY_FALLBACK_TRACKING_URL = "fallbackTrackingUrl";
 
+    public static String withOriginalFallback(String target, String original) {
+        if (target == null || target.isEmpty()) return original;
+        Uri uri = Uri.parse(target);
+        if (!SCHEME_DEEPLINK_PLUS.equalsIgnoreCase(uri.getScheme()) ||
+                !uri.isHierarchical() || uri.getQueryParameter(QUERY_FALLBACK_URL) != null ||
+                original == null || original.isEmpty() || target.equals(original)) return target;
+        return uri.buildUpon().appendQueryParameter(QUERY_FALLBACK_URL, original).build().toString();
+    }
+
     @Override
     public boolean shouldOverrideUrlLoading(Uri uri) {
         return SCHEME_DEEPLINK_PLUS.equalsIgnoreCase(uri.getScheme());
