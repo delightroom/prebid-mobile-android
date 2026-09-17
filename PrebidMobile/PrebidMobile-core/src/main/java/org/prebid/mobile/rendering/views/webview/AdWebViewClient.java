@@ -206,7 +206,7 @@ public class AdWebViewClient extends WebViewClient {
         loadingFinished = false;
 
         String targetUrl = webViewBase.getTargetUrl();
-        url = TextUtils.isEmpty(targetUrl) ? url : targetUrl;
+        url = org.prebid.mobile.rendering.utils.url.action.DeepLinkPlusAction.withOriginalFallback(targetUrl, url);
 
         if (webViewBase.canHandleClick()) {
             loadingFinished = true;

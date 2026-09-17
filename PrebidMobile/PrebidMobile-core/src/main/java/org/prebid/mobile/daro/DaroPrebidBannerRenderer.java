@@ -11,6 +11,7 @@ import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import org.prebid.mobile.AdSize;
 import org.prebid.mobile.api.data.AdFormat;
 import org.prebid.mobile.api.exceptions.AdException;
@@ -131,6 +132,12 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
         );
     }
 
+    @Nullable private String clickThroughUrl;
+
+    public void setClickThroughUrl(@Nullable String url) {
+        clickThroughUrl = url;
+    }
+
     public void renderHtml(@NonNull String html, int width, int height) {
         if (destroyed) {
             return;
@@ -149,6 +156,7 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
         );
         model.setName("HTML");
         model.setHtml(html);
+        model.setTargetUrl(clickThroughUrl);
         model.setWidth(width);
         model.setHeight(height);
         model.setRequireImpressionUrl(false);
@@ -171,6 +179,7 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
             AdUnitConfiguration adConfiguration = new AdUnitConfiguration();
             adConfiguration.setAdFormat(AdFormat.VAST);
             adConfiguration.setPlacementType(PlacementType.IN_BANNER);
+            adConfiguration.setDaroClickThroughUrl(clickThroughUrl);
             adConfiguration.addSize(new AdSize(width, height));
             adConfiguration.setInterstitialSize(width, height);
 

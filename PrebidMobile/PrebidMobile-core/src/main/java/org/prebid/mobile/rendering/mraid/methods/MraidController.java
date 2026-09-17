@@ -181,7 +181,7 @@ public class MraidController {
         if (mraidUrlHandler == null) {
             mraidUrlHandler = new MraidUrlHandler(oldWebViewBase.getContext(), oldWebViewBase.getMRAIDInterface());
         }
-        mraidUrlHandler.open(uri, broadcastId);
+        mraidUrlHandler.open(org.prebid.mobile.rendering.utils.url.action.DeepLinkPlusAction.withOriginalFallback(oldWebViewBase.getTargetUrl(), uri), broadcastId);
     }
 
     public void playVideo(WebViewBase oldWebViewBase, MraidEvent event) {

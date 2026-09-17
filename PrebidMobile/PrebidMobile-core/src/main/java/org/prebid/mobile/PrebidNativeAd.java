@@ -16,6 +16,14 @@
 
 package org.prebid.mobile;
 
+import org.prebid.mobile.rendering.utils.url.UrlHandler;
+import org.prebid.mobile.rendering.utils.url.ActionNotResolvedException;
+import org.prebid.mobile.rendering.utils.url.action.DeepLinkPlusAction;
+import org.prebid.mobile.rendering.utils.url.action.DeepLinkAction;
+import org.prebid.mobile.rendering.utils.url.action.BrowserAction;
+import org.prebid.mobile.rendering.utils.url.action.UrlAction;
+
+
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
@@ -581,6 +589,7 @@ public class PrebidNativeAd {
     }
 
     public void daroUnregisterViewFromTracking() {
+        daroClickGeneration++;
         if (visibilityDetector != null) {
             visibilityDetector.destroy();
             visibilityDetector = null;
@@ -709,7 +718,45 @@ public class PrebidNativeAd {
         return true;
     }
 
+    private String daroClickThroughUrl;
+    private int daroClickGeneration;
+
+    public void setDaroClickThroughUrl(String url) {
+        daroClickThroughUrl = url;
+        daroClickGeneration++;
+    }
+
     private boolean handleClick(View v, PrebidNativeAdEventListener listener) {
+        if (daroClickThroughUrl != null) {
+            final int clickGeneration = daroClickGeneration;
+            String target = DeepLinkPlusAction.withOriginalFallback(daroClickThroughUrl, clickUrl);
+            new UrlHandler.Builder()
+                .withDeepLinkPlusAction(new DeepLinkPlusAction())
+                .withDeepLinkAction(new DeepLinkAction() {
+                    @Override public void performAction(Context context, UrlHandler handler, Uri uri) throws ActionNotResolvedException {
+                        if (clickGeneration != daroClickGeneration) throw new ActionNotResolvedException("Native ad unbound");
+                        super.performAction(context, handler, uri);
+                    }
+                })
+                .withBrowserAction(new BrowserAction(0, null) {
+                    @Override public void performAction(Context context, UrlHandler handler, Uri uri) throws ActionNotResolvedException {
+                        if (clickGeneration != daroClickGeneration) throw new ActionNotResolvedException("Native ad unbound");
+                        if (!openNativeIntent(uri.toString(), context)) {
+                            throw new ActionNotResolvedException("Unable to open native fallback");
+                        }
+                    }
+                })
+                .withResultListener(new UrlHandler.UrlHandlerResultListener() {
+                    @Override public void onSuccess(String url, UrlAction action) {
+                        if (clickGeneration != daroClickGeneration) return;
+                        if (listener != null) listener.onAdClicked();
+                        fireClickTrackers(v.getContext());
+                    }
+                    @Override public void onFailure(String url) { }
+                }).build().handleResolvedUrl(v.getContext(), target, null, true);
+            return true;
+        }
+
         if (clickUrl == null || clickUrl.isEmpty()) {
             return false;
         }

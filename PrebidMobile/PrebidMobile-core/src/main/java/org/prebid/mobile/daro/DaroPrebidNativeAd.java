@@ -29,6 +29,12 @@ public final class DaroPrebidNativeAd implements DaroPrebidRenderHandle {
         this.media = media;
     }
 
+    public void setClickThroughUrl(@Nullable String url) {
+        nativeAd.setDaroClickThroughUrl(url);
+        if (media != null) media.setClickThroughUrl(
+            org.prebid.mobile.rendering.utils.url.action.DeepLinkPlusAction.withOriginalFallback(url, url == null ? null : nativeAd.getClickUrl()));
+    }
+
     @NonNull
     public String getTitle() {
         return nativeAd.getTitle();
