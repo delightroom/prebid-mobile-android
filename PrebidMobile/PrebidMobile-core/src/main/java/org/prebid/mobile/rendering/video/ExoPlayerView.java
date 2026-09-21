@@ -23,11 +23,15 @@ import android.widget.FrameLayout;
 import android.widget.RelativeLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
-import com.google.android.exoplayer2.*;
-import com.google.android.exoplayer2.source.ProgressiveMediaSource;
-import com.google.android.exoplayer2.ui.PlayerView;
-import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
-import com.google.android.exoplayer2.util.Util;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.source.ProgressiveMediaSource;
+import androidx.media3.ui.PlayerView;
+import androidx.media3.datasource.DefaultDataSource;
+import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.common.util.Util;
 import org.prebid.mobile.LogUtil;
 import org.prebid.mobile.core.R;
 import org.prebid.mobile.api.exceptions.AdException;
@@ -35,6 +39,7 @@ import org.prebid.mobile.configuration.AdUnitConfiguration;
 import org.prebid.mobile.rendering.listeners.VideoCreativeViewListener;
 import org.prebid.mobile.rendering.video.vast.VASTErrorCodes;
 
+@androidx.annotation.OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)
 public class ExoPlayerView extends FrameLayout implements VideoPlayerView {
 
     private static final String TAG = "ExoPlayerView";
@@ -269,7 +274,7 @@ public class ExoPlayerView extends FrameLayout implements VideoPlayerView {
             LogUtil.debug(TAG, "Skipping initPlayer(): Player is already initialized.");
             return;
         }
-        player = new SimpleExoPlayer.Builder(getContext()).build();
+        player = new ExoPlayer.Builder(getContext()).build();
         player.addListener(eventListener);
         playerView.setPlayer(this.player);
         player.setVolume(initialVolume);
@@ -299,7 +304,7 @@ public class ExoPlayerView extends FrameLayout implements VideoPlayerView {
     void preparePlayer(boolean resetPosition) {
         ProgressiveMediaSource extractorMediaSource = buildMediaSource(videoUri);
         if (extractorMediaSource == null || player == null) {
-            LogUtil.debug(TAG, "preparePlayer(): ExtractorMediaSource or SimpleExoPlayer is null. Skipping prepare.");
+            LogUtil.debug(TAG, "preparePlayer(): ExtractorMediaSource or ExoPlayer is null. Skipping prepare.");
             return;
         }
         player.setMediaSource(extractorMediaSource, resetPosition);
@@ -312,7 +317,8 @@ public class ExoPlayerView extends FrameLayout implements VideoPlayerView {
         }
         MediaItem mediaItem = new MediaItem.Builder().setUri(uri).build();
         return new ProgressiveMediaSource.Factory(
-                new DefaultDataSourceFactory(getContext(), Util.getUserAgent(getContext(), "PrebidRenderingSDK")))
+                new DefaultDataSource.Factory(getContext(), new DefaultHttpDataSource.Factory()
+                        .setUserAgent(Util.getUserAgent(getContext(), "PrebidRenderingSDK"))))
                 .createMediaSource(mediaItem);
     }
 
