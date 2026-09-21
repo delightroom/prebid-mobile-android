@@ -22,14 +22,14 @@ import android.content.res.Resources;
 import android.content.res.XmlResourceParser;
 import android.net.Uri;
 import android.os.Looper;
-import com.google.android.exoplayer2.Player;
-import com.google.android.exoplayer2.ui.PlayerView;
-import com.google.android.exoplayer2.ui.AspectRatioFrameLayout;
-import com.google.android.exoplayer2.ui.SubtitleView;
+import androidx.media3.common.Player;
+import androidx.media3.ui.PlayerView;
+import androidx.media3.ui.AspectRatioFrameLayout;
+import androidx.media3.ui.SubtitleView;
 import android.view.SurfaceView;
-import com.google.android.exoplayer2.SimpleExoPlayer;
-import com.google.android.exoplayer2.source.MediaSource;
-import com.google.android.exoplayer2.source.TrackGroupArray;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.source.MediaSource;
+import androidx.media3.common.Tracks;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -57,7 +57,7 @@ public class ExoPlayerViewTest {
     @Mock
     VideoCreative mockVideoCreative;
     @Mock
-    SimpleExoPlayer mockSimpleExoPlayer;
+    ExoPlayer mockExoPlayer;
 
     @Before
     public void setUp() throws Exception {
@@ -66,9 +66,9 @@ public class ExoPlayerViewTest {
         Context context = Robolectric.buildActivity(Activity.class).create().get();
 
         exoPlayerView = spy(new ExoPlayerView(context, mockVideoCreative));
-        WhiteBox.field(ExoPlayerView.class, "player").set(exoPlayerView, mockSimpleExoPlayer);
+        WhiteBox.field(ExoPlayerView.class, "player").set(exoPlayerView, mockExoPlayer);
 
-        reset(mockVideoCreative, mockSimpleExoPlayer);
+        reset(mockVideoCreative, mockExoPlayer);
     }
 
     @Test
@@ -76,20 +76,20 @@ public class ExoPlayerViewTest {
     public void createsVideoSurfaceWithoutSharedController() {
         PlayerView playerView = (PlayerView) exoPlayerView.getChildAt(0);
         assertTrue(playerView.getVideoSurfaceView() instanceof SurfaceView);
-        assertTrue(playerView.findViewById(com.google.android.exoplayer2.ui.R.id.exo_content_frame)
+        assertTrue(playerView.findViewById(androidx.media3.ui.R.id.exo_content_frame)
                 instanceof AspectRatioFrameLayout);
         assertTrue(playerView.getSubtitleView() instanceof SubtitleView);
         assertNotNull(playerView.getOverlayFrameLayout());
         assertFalse(playerView.getUseController());
-        assertNull(playerView.findViewById(com.google.android.exoplayer2.ui.R.id.exo_controller));
-        assertNull(playerView.findViewById(com.google.android.exoplayer2.ui.R.id.exo_controller_placeholder));
+        assertNull(playerView.findViewById(androidx.media3.ui.R.id.exo_controller));
+        assertNull(playerView.findViewById(androidx.media3.ui.R.id.exo_controller_placeholder));
     }
 
     @Test
     public void setValidVolume_TrackEventAndChangePlayerVolume() {
         exoPlayerView.setVolume(1);
 
-        verify(mockSimpleExoPlayer, times(1)).setVolume(1);
+        verify(mockExoPlayer, times(1)).setVolume(1);
         verify(mockVideoCreative, times(1)).onVolumeChanged(1);
     }
 
@@ -97,7 +97,7 @@ public class ExoPlayerViewTest {
     public void setInvalidVolume_NoEventAndNoVolumeChange() {
         exoPlayerView.setVolume(-1);
 
-        verifyNoMoreInteractions(mockSimpleExoPlayer);
+        verifyNoMoreInteractions(mockExoPlayer);
         verifyNoMoreInteractions(mockVideoCreative);
     }
 
@@ -110,7 +110,7 @@ public class ExoPlayerViewTest {
     @Test
     public void isPlaying() {
         exoPlayerView.isPlaying();
-        verify(mockSimpleExoPlayer).getPlayWhenReady();
+        verify(mockExoPlayer).getPlayWhenReady();
         when(exoPlayerView.isPlaying()).thenReturn(false);
         boolean playing = exoPlayerView.isPlaying();
         assertFalse(playing);
@@ -131,7 +131,7 @@ public class ExoPlayerViewTest {
         exoPlayerView.setVideoUri(null);
         exoPlayerView.start(anyInt());
 
-        verifyNoInteractions(mockSimpleExoPlayer);
+        verifyNoInteractions(mockExoPlayer);
         verifyNoInteractions(mockVideoCreative);
     }
 
@@ -142,8 +142,8 @@ public class ExoPlayerViewTest {
 
         verify(mockVideoCreative).onEvent(VideoAdEvent.Event.AD_CREATIVEVIEW);
         verify(mockVideoCreative).onEvent(VideoAdEvent.Event.AD_START);
-        verify(mockSimpleExoPlayer).setMediaSource(any(MediaSource.class), anyBoolean());
-        verify(mockSimpleExoPlayer).prepare();
+        verify(mockExoPlayer).setMediaSource(any(MediaSource.class), anyBoolean());
+        verify(mockExoPlayer).prepare();
     }
 
     @Test
@@ -157,8 +157,8 @@ public class ExoPlayerViewTest {
         events.onPlaybackStateChanged(Player.STATE_READY);
         exoPlayerView.pause();
         exoPlayerView.resume();
-        verify(mockSimpleExoPlayer).setVolume(0);
-        verify(mockSimpleExoPlayer, never()).setPlayWhenReady(true);
+        verify(mockExoPlayer).setVolume(0);
+        verify(mockExoPlayer, never()).setPlayWhenReady(true);
         verifyNoInteractions(mockVideoCreative, ready);
 
         events.onRenderedFirstFrame();
@@ -177,7 +177,7 @@ public class ExoPlayerViewTest {
         exoPlayerView.prepareStillFrame(ready);
 
         verify(mockVideoCreative).onFailure(any());
-        verifyNoInteractions(mockSimpleExoPlayer, ready);
+        verifyNoInteractions(mockExoPlayer, ready);
     }
 
     @Test
@@ -203,13 +203,13 @@ public class ExoPlayerViewTest {
         exoPlayerView.pause();
         Player.Listener events = (Player.Listener) WhiteBox.field(ExoPlayerView.class, "eventListener").get(exoPlayerView);
         events.onPlaybackStateChanged(Player.STATE_READY);
-        verify(mockSimpleExoPlayer, never()).setPlayWhenReady(true);
-        verify(mockSimpleExoPlayer, never()).stop();
+        verify(mockExoPlayer, never()).setPlayWhenReady(true);
+        verify(mockExoPlayer, never()).stop();
     }
 
     private void useRealViewForPlayerCallbacks() throws Exception {
         exoPlayerView = new ExoPlayerView(exoPlayerView.getContext(), mockVideoCreative);
-        WhiteBox.field(ExoPlayerView.class, "player").set(exoPlayerView, mockSimpleExoPlayer);
+        WhiteBox.field(ExoPlayerView.class, "player").set(exoPlayerView, mockExoPlayer);
     }
 
     @Test
@@ -221,7 +221,7 @@ public class ExoPlayerViewTest {
     @Test
     public void getCurrentPosition() {
         exoPlayerView.getCurrentPosition();
-        verify(mockSimpleExoPlayer).getContentPosition();
+        verify(mockExoPlayer).getContentPosition();
     }
 
     @Test
@@ -233,7 +233,7 @@ public class ExoPlayerViewTest {
     @Test
     public void getDuration() {
         exoPlayerView.getDuration();
-        verify(mockSimpleExoPlayer).getDuration();
+        verify(mockExoPlayer).getDuration();
     }
 
     @Test
@@ -250,7 +250,7 @@ public class ExoPlayerViewTest {
     @Test
     public void pause() {
         exoPlayerView.pause();
-        verify(mockSimpleExoPlayer).stop();
+        verify(mockExoPlayer).stop();
     }
 
     @Test
@@ -258,24 +258,24 @@ public class ExoPlayerViewTest {
         AdViewProgressUpdateTask mockAdViewProgressUpdateTask = mock(AdViewProgressUpdateTask.class);
         WhiteBox.field(ExoPlayerView.class, "adViewProgressUpdateTask").set(exoPlayerView, mockAdViewProgressUpdateTask);
         PlayerView playerView = (PlayerView) exoPlayerView.getChildAt(0);
-        when(mockSimpleExoPlayer.getApplicationLooper()).thenReturn(Looper.getMainLooper());
-        when(mockSimpleExoPlayer.getCurrentTrackGroups()).thenReturn(TrackGroupArray.EMPTY);
-        playerView.setPlayer(mockSimpleExoPlayer);
-        assertSame(mockSimpleExoPlayer, playerView.getPlayer());
+        when(mockExoPlayer.getApplicationLooper()).thenReturn(Looper.getMainLooper());
+        when(mockExoPlayer.getCurrentTracks()).thenReturn(Tracks.EMPTY);
+        playerView.setPlayer(mockExoPlayer);
+        assertSame(mockExoPlayer, playerView.getPlayer());
 
         exoPlayerView.destroy();
         assertNull(playerView.getPlayer());
         verify(mockAdViewProgressUpdateTask).cancel(true);
         verify(exoPlayerView, times(1)).destroy();
-        verify(mockSimpleExoPlayer).removeListener(
+        verify(mockExoPlayer).removeListener(
                 (Player.Listener) WhiteBox.field(ExoPlayerView.class, "eventListener").get(exoPlayerView));
-        verify(mockSimpleExoPlayer).release();
+        verify(mockExoPlayer).release();
     }
 
     @Test
     public void forceStop() {
         exoPlayerView.forceStop();
-        verify(mockSimpleExoPlayer).stop();
+        verify(mockExoPlayer).stop();
         verify(exoPlayerView, times(1)).destroy();
         verify(mockVideoCreative).onDisplayCompleted();
     }
@@ -285,8 +285,8 @@ public class ExoPlayerViewTest {
         exoPlayerView.setVideoUri(Uri.EMPTY);
         exoPlayerView.resume();
 
-        verify(mockSimpleExoPlayer).setMediaSource(any(MediaSource.class), anyBoolean());
-        verify(mockSimpleExoPlayer).prepare();
+        verify(mockExoPlayer).setMediaSource(any(MediaSource.class), anyBoolean());
+        verify(mockExoPlayer).prepare();
     }
 
     @Test
@@ -294,17 +294,17 @@ public class ExoPlayerViewTest {
         exoPlayerView.setVideoUri(null);
         exoPlayerView.resume();
 
-        verifyNoInteractions(mockSimpleExoPlayer);
+        verifyNoInteractions(mockExoPlayer);
     }
-    /** A host may replace either shared XML with Media3 content. Neither may be loaded. */
+    /** A host may replace either shared XML with legacy ExoPlayer content. Neither may be loaded. */
     @Implements(Resources.class)
     public static class RejectSharedPlayerLayouts extends ShadowResources {
         @RealObject private Resources resources;
 
         @Implementation
         protected XmlResourceParser getLayout(int id) {
-            if (id == com.google.android.exoplayer2.ui.R.layout.exo_player_view
-                    || id == com.google.android.exoplayer2.ui.R.layout.exo_player_control_view) {
+            if (id == androidx.media3.ui.R.layout.exo_player_view
+                    || id == androidx.media3.ui.R.layout.exo_player_control_view) {
                 throw new AssertionError("RTB must not inflate a shared player layout");
             }
             return reflector(ResourcesReflector.class, resources).getLayout(id);
