@@ -18,8 +18,14 @@ package org.prebid.mobile.rendering.video;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.res.Resources;
+import android.content.res.XmlResourceParser;
 import android.net.Uri;
 import com.google.android.exoplayer2.Player;
+import com.google.android.exoplayer2.ui.PlayerView;
+import com.google.android.exoplayer2.ui.AspectRatioFrameLayout;
+import com.google.android.exoplayer2.ui.SubtitleView;
+import android.view.SurfaceView;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.source.MediaSource;
 import org.junit.Before;
@@ -30,6 +36,14 @@ import org.mockito.MockitoAnnotations;
 import org.prebid.mobile.test.utils.WhiteBox;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
+import org.robolectric.annotation.Implementation;
+import org.robolectric.annotation.Implements;
+import org.robolectric.annotation.RealObject;
+import org.robolectric.shadows.ShadowResources;
+import org.robolectric.util.reflector.Direct;
+import org.robolectric.util.reflector.ForType;
+import static org.robolectric.util.reflector.Reflector.reflector;
 
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
@@ -53,6 +67,20 @@ public class ExoPlayerViewTest {
         WhiteBox.field(ExoPlayerView.class, "player").set(exoPlayerView, mockSimpleExoPlayer);
 
         reset(mockVideoCreative, mockSimpleExoPlayer);
+    }
+
+    @Test
+    @Config(shadows = RejectSharedPlayerLayouts.class)
+    public void createsVideoSurfaceWithoutSharedController() {
+        PlayerView playerView = (PlayerView) exoPlayerView.getChildAt(0);
+        assertTrue(playerView.getVideoSurfaceView() instanceof SurfaceView);
+        assertTrue(playerView.findViewById(com.google.android.exoplayer2.ui.R.id.exo_content_frame)
+                instanceof AspectRatioFrameLayout);
+        assertTrue(playerView.getSubtitleView() instanceof SubtitleView);
+        assertNotNull(playerView.getOverlayFrameLayout());
+        assertFalse(playerView.getUseController());
+        assertNull(playerView.findViewById(com.google.android.exoplayer2.ui.R.id.exo_controller));
+        assertNull(playerView.findViewById(com.google.android.exoplayer2.ui.R.id.exo_controller_placeholder));
     }
 
     @Test
@@ -231,7 +259,8 @@ public class ExoPlayerViewTest {
         verify(mockAdViewProgressUpdateTask).cancel(true);
         verify(exoPlayerView, times(1)).destroy();
         verify(mockSimpleExoPlayer).removeListener(any(Player.Listener.class));
-        verify(exoPlayerView).setPlayer(null);
+        PlayerView playerView = (PlayerView) exoPlayerView.getChildAt(0);
+        assertNull(playerView.getPlayer());
         verify(mockSimpleExoPlayer).release();
     }
 
@@ -258,5 +287,24 @@ public class ExoPlayerViewTest {
         exoPlayerView.resume();
 
         verifyNoInteractions(mockSimpleExoPlayer);
+    }
+    /** A host may replace either shared XML with Media3 content. Neither may be loaded. */
+    @Implements(Resources.class)
+    public static class RejectSharedPlayerLayouts extends ShadowResources {
+        @RealObject private Resources resources;
+
+        @Implementation
+        protected XmlResourceParser getLayout(int id) {
+            if (id == com.google.android.exoplayer2.ui.R.layout.exo_player_view
+                    || id == com.google.android.exoplayer2.ui.R.layout.exo_player_control_view) {
+                throw new AssertionError("RTB must not inflate a shared player layout");
+            }
+            return reflector(ResourcesReflector.class, resources).getLayout(id);
+        }
+    }
+
+    @ForType(Resources.class)
+    interface ResourcesReflector {
+        @Direct XmlResourceParser getLayout(int id);
     }
 }
