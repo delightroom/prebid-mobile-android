@@ -21,6 +21,7 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.content.res.XmlResourceParser;
 import android.net.Uri;
+import android.os.Looper;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.ui.AspectRatioFrameLayout;
@@ -28,6 +29,7 @@ import com.google.android.exoplayer2.ui.SubtitleView;
 import android.view.SurfaceView;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.source.MediaSource;
+import com.google.android.exoplayer2.source.TrackGroupArray;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -255,12 +257,18 @@ public class ExoPlayerViewTest {
     public void destroy() throws IllegalAccessException {
         AdViewProgressUpdateTask mockAdViewProgressUpdateTask = mock(AdViewProgressUpdateTask.class);
         WhiteBox.field(ExoPlayerView.class, "adViewProgressUpdateTask").set(exoPlayerView, mockAdViewProgressUpdateTask);
+        PlayerView playerView = (PlayerView) exoPlayerView.getChildAt(0);
+        when(mockSimpleExoPlayer.getApplicationLooper()).thenReturn(Looper.getMainLooper());
+        when(mockSimpleExoPlayer.getCurrentTrackGroups()).thenReturn(TrackGroupArray.EMPTY);
+        playerView.setPlayer(mockSimpleExoPlayer);
+        assertSame(mockSimpleExoPlayer, playerView.getPlayer());
+
         exoPlayerView.destroy();
+        assertNull(playerView.getPlayer());
         verify(mockAdViewProgressUpdateTask).cancel(true);
         verify(exoPlayerView, times(1)).destroy();
-        verify(mockSimpleExoPlayer).removeListener(any(Player.Listener.class));
-        PlayerView playerView = (PlayerView) exoPlayerView.getChildAt(0);
-        assertNull(playerView.getPlayer());
+        verify(mockSimpleExoPlayer).removeListener(
+                (Player.Listener) WhiteBox.field(ExoPlayerView.class, "eventListener").get(exoPlayerView));
         verify(mockSimpleExoPlayer).release();
     }
 
