@@ -18,6 +18,8 @@ package org.prebid.mobile.rendering.video;
 
 import android.content.Context;
 import android.net.Uri;
+import android.view.LayoutInflater;
+import android.widget.FrameLayout;
 import android.widget.RelativeLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
@@ -27,12 +29,13 @@ import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.util.Util;
 import org.prebid.mobile.LogUtil;
+import org.prebid.mobile.core.R;
 import org.prebid.mobile.api.exceptions.AdException;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
 import org.prebid.mobile.rendering.listeners.VideoCreativeViewListener;
 import org.prebid.mobile.rendering.video.vast.VASTErrorCodes;
 
-public class ExoPlayerView extends PlayerView implements VideoPlayerView {
+public class ExoPlayerView extends FrameLayout implements VideoPlayerView {
 
     private static final String TAG = "ExoPlayerView";
     public static final float DEFAULT_INITIAL_VIDEO_VOLUME = 1.0f;
@@ -41,6 +44,7 @@ public class ExoPlayerView extends PlayerView implements VideoPlayerView {
     private AdViewProgressUpdateTask adViewProgressUpdateTask;
     private AdUnitConfiguration config;
     private ExoPlayer player;
+    private final PlayerView playerView;
 
     private Uri videoUri;
 
@@ -55,6 +59,10 @@ public class ExoPlayerView extends PlayerView implements VideoPlayerView {
             @NonNull VideoCreativeViewListener videoCreativeViewListener
     ) {
         super(context);
+        // Both ExoPlayer and Media3 publish exo_player_view. Select our layout before
+        // constructing PlayerView so the host app's merged resource cannot replace it.
+        playerView = (PlayerView) LayoutInflater.from(context).inflate(R.layout.daro_exo_player, this, false);
+        addView(playerView);
         this.videoCreativeViewListener = videoCreativeViewListener;
     }
 
@@ -226,7 +234,7 @@ public class ExoPlayerView extends PlayerView implements VideoPlayerView {
         if (player != null) {
             player.stop();
             player.removeListener(eventListener);
-            setPlayer(null);
+            playerView.setPlayer(null);
             player.release();
             player = null;
         }
@@ -263,8 +271,7 @@ public class ExoPlayerView extends PlayerView implements VideoPlayerView {
         }
         player = new SimpleExoPlayer.Builder(getContext()).build();
         player.addListener(eventListener);
-        setPlayer(this.player);
-        setUseController(false);
+        playerView.setPlayer(this.player);
         player.setVolume(initialVolume);
     }
 
