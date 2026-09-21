@@ -36,6 +36,8 @@ public class Companion extends VASTParserBase
     private final static String VAST_TRACKINGEVENTS = "TrackingEvents";
 
     private String id;
+    private String renderingMode;
+    private final ArrayList<CompanionClickTracking> companionClickTrackings = new ArrayList<>();
     private String width;
     private String height;
     private String assetWidth;
@@ -59,6 +61,7 @@ public class Companion extends VASTParserBase
         p.require(XmlPullParser.START_TAG, null, VAST_COMPANION);
 
         id = p.getAttributeValue(null, "id");
+        renderingMode = p.getAttributeValue(null, "renderingMode");
         width = p.getAttributeValue(null, "width");
         height = p.getAttributeValue(null, "height");
         assetWidth = p.getAttributeValue(null, "assetWidth");
@@ -112,6 +115,7 @@ public class Companion extends VASTParserBase
 			{
                 p.require(XmlPullParser.START_TAG, null, VAST_COMPANIONCLICKTRACKING);
                 companionClickTracking = new CompanionClickTracking(p);
+                companionClickTrackings.add(companionClickTracking);
                 p.require(XmlPullParser.END_TAG, null, VAST_COMPANIONCLICKTRACKING);
 			}
 			else if (name != null && name.equals(VAST_TRACKINGEVENTS))
@@ -127,6 +131,10 @@ public class Companion extends VASTParserBase
 		}
 
 	}
+
+    public String getRenderingMode() { return renderingMode; }
+
+    public ArrayList<CompanionClickTracking> getCompanionClickTrackings() { return companionClickTrackings; }
 
     public String getId() {
         return id;

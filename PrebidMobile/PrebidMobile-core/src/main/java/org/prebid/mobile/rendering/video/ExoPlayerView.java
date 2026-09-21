@@ -57,6 +57,7 @@ public class ExoPlayerView extends FrameLayout implements VideoPlayerView {
     private boolean preparingStillFrame;
     private boolean stillFrameMode;
     private boolean playbackRequested;
+    private boolean bannerPlaybackCompleted;
     private Runnable stillFrameReady;
 
     public ExoPlayerView(
@@ -98,7 +99,8 @@ public class ExoPlayerView extends FrameLayout implements VideoPlayerView {
                     initUpdateTask();
                     break;
                 case Player.STATE_ENDED:
-                    videoCreativeViewListener.onDisplayCompleted();
+                    if (isBannerVideo()) finishBannerPlayback();
+                    else videoCreativeViewListener.onDisplayCompleted();
                     break;
             }
         }
@@ -227,7 +229,25 @@ public class ExoPlayerView extends FrameLayout implements VideoPlayerView {
 
     @Override
     public void forceStop() {
+        if (isBannerVideo()) {
+            finishBannerPlayback();
+            return;
+        }
         destroy();
+        videoCreativeViewListener.onDisplayCompleted();
+    }
+
+    private boolean isBannerVideo() {
+        return config != null && org.prebid.mobile.daro.DaroBannerCompanionModel.isInBanner(config);
+    }
+
+    private void finishBannerPlayback() {
+        if (bannerPlaybackCompleted) return;
+        bannerPlaybackCompleted = true;
+        playbackRequested = false;
+        killUpdateTask();
+        // VAST duration can precede STATE_ENDED. Preserve the surface in either completion path.
+        if (player != null) player.setPlayWhenReady(false);
         videoCreativeViewListener.onDisplayCompleted();
     }
 

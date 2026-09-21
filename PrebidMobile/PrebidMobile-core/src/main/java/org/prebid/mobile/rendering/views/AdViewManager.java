@@ -27,6 +27,9 @@ import org.prebid.mobile.api.exceptions.AdException;
 import org.prebid.mobile.api.rendering.InterstitialView;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
 import org.prebid.mobile.core.R;
+import org.prebid.mobile.daro.DaroBannerCompanionCreative;
+import org.prebid.mobile.daro.DaroBannerCompanionModel;
+import org.prebid.mobile.rendering.listeners.CreativeResolutionListener;
 import org.prebid.mobile.rendering.bidding.data.bid.BidResponse;
 import org.prebid.mobile.rendering.interstitial.DialogEventListener;
 import org.prebid.mobile.rendering.listeners.CreativeImpressionListener;
@@ -44,6 +47,7 @@ import org.prebid.mobile.rendering.models.internal.InternalPlayerState;
 import org.prebid.mobile.rendering.utils.helpers.Utils;
 import org.prebid.mobile.rendering.video.VideoAdEvent;
 import org.prebid.mobile.rendering.video.VideoCreative;
+import org.prebid.mobile.rendering.video.VideoCreativeModel;
 import org.prebid.mobile.rendering.video.VideoCreativeView;
 import org.prebid.mobile.rendering.views.interstitial.InterstitialManager;
 
@@ -66,6 +70,10 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
     private AdViewManagerListener adViewListener;
     private AbstractCreative currentCreative;
     private AbstractCreative lastCreativeShown;
+    private DaroBannerCompanionCreative bannerCompanion;
+    private boolean bannerVideoCompleted;
+    private boolean bannerCompanionShown;
+    private VideoCreativeModel bannerVideoModel;
 
     private AdViewManagerInterstitialDelegate delegate = new AdViewManagerInterstitialDelegate() {
         @Override
@@ -193,7 +201,9 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
             }
         }
         if (creative.isVideo()) {
+            long generation = lifecycleGeneration;
             handleVideoCreativeComplete(creative);
+            if (generation != lifecycleGeneration) return;
         }
 
         // Clean up on refresh
@@ -213,6 +223,7 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
 
     public void resetTransactionState() {
         lifecycleGeneration++;
+        destroyBannerCompanion();
         hide();
         transactionManager.resetState();
     }
@@ -265,6 +276,7 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
 
     public void destroy() {
         lifecycleGeneration++;
+        destroyBannerCompanion();
         if (transactionManager != null) {
             transactionManager.destroy();
         }
@@ -301,10 +313,12 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
     }
 
     public boolean isNotShowingEndCard() {
+        if (bannerCompanionShown) return false;
         return currentCreative != null && (!(currentCreative.isDisplay()) || !currentCreative.isEndCard());
     }
 
     public boolean hasEndCard() {
+        if (bannerCompanionShown) return true;
         return currentCreative != null && currentCreative.isDisplay();
     }
 
@@ -434,6 +448,13 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
     }
 
     private void handleVideoCreativeComplete(AbstractCreative creative) {
+        if (DaroBannerCompanionModel.isInBanner(adConfiguration)) {
+            long generation = lifecycleGeneration;
+            bannerVideoCompleted = true;
+            adViewListener.videoCreativePlaybackFinished();
+            if (generation == lifecycleGeneration) showBannerCompanionIfReady();
+            return;
+        }
         if (adView instanceof org.prebid.mobile.api.rendering.VideoView
             && ((org.prebid.mobile.api.rendering.VideoView) adView).isPrepareStillFrameEnabled()) {
             adViewListener.videoCreativePlaybackFinished();
@@ -558,14 +579,75 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
 
     @Override
     public void creativeDidTrackImpression(AbstractCreative creative) {
-        if (creative.equals(currentCreative)) {
+        if (creative.equals(currentCreative) && creative != bannerCompanion) {
             adViewListener.adDisplayed();
         }
     }
 
     private void displayCreative(View creativeView) {
         currentCreative.display();
+        prepareBannerCompanion();
         adViewListener.viewReadyForImmediateDisplay(creativeView);
+    }
+
+    private void prepareBannerCompanion() {
+        prepareBannerCompanion(null);
+    }
+
+    private void prepareBannerCompanion(Runnable requiredReady) {
+        if (!DaroBannerCompanionModel.isInBanner(adConfiguration) || bannerCompanion != null
+                || !(currentCreative.getCreativeModel() instanceof VideoCreativeModel)) return;
+        DaroBannerCompanionModel model = ((VideoCreativeModel) currentCreative.getCreativeModel()).getBannerCompanion();
+        if (model == null) return;
+        final long generation = lifecycleGeneration;
+        bannerVideoModel = (VideoCreativeModel) currentCreative.getCreativeModel();
+        try {
+            bannerCompanion = new DaroBannerCompanionCreative(contextReference.get(), model);
+            bannerCompanion.setCreativeViewListener(this);
+            bannerCompanion.setResolutionListener(new CreativeResolutionListener() {
+                @Override public void creativeReady(AbstractCreative creative) {
+                    if (generation != lifecycleGeneration) return;
+                    if (requiredReady != null) requiredReady.run();
+                    else showBannerCompanionIfReady();
+                }
+                @Override public void creativeFailed(AdException error) {
+                    // Keep the ended video surface. Never fail a successfully loaded video for an optional image.
+                    if (generation != lifecycleGeneration) return;
+                    if (bannerCompanion != null) bannerCompanion.destroy();
+                    if (requiredReady != null) adViewListener.failedToLoad(error);
+                }
+            });
+            bannerCompanion.load();
+        } catch (AdException error) {
+            model.trackLoadFailure();
+            if (bannerCompanion != null) bannerCompanion.destroy();
+            if (requiredReady != null) adViewListener.failedToLoad(error);
+        }
+    }
+
+    private void showBannerCompanionIfReady() {
+        if (!bannerVideoCompleted || bannerCompanionShown || bannerCompanion == null
+                || !bannerCompanion.isResolved() || adView == null) return;
+        bannerCompanionShown = true;
+        AbstractCreative video = currentCreative;
+        DaroBannerCompanionCreative companion = bannerCompanion;
+        long generation = lifecycleGeneration;
+        currentCreative = companion;
+        adViewListener.viewReadyForImmediateDisplay(companion.getCreativeView());
+        if (generation != lifecycleGeneration) return;
+        companion.display();
+        if (video != null) video.destroy();
+    }
+
+    private void destroyBannerCompanion() {
+        if (bannerCompanionShown && bannerVideoModel != null) {
+            bannerVideoModel.trackVideoEvent(VideoAdEvent.Event.AD_CLOSELINEAR);
+        }
+        bannerVideoModel = null;
+        if (bannerCompanion != null) bannerCompanion.destroy();
+        bannerCompanion = null;
+        bannerVideoCompleted = false;
+        bannerCompanionShown = false;
     }
 
     public void prepareVideoStillFrame(Runnable onReady) {
@@ -641,6 +723,19 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
             currentCreative = creativeFactories.get(0).getCreative();
             currentCreative.createOmAdSession();
         }
+        if (DaroBannerCompanionModel.isInBanner(adConfiguration)
+                && currentCreative != null && currentCreative.getCreativeModel() instanceof VideoCreativeModel) {
+            DaroBannerCompanionModel companion = ((VideoCreativeModel) currentCreative.getCreativeModel()).getBannerCompanion();
+            if (companion != null && companion.isRequired()) {
+                // A required companion must decode before the video is accepted or produces an impression.
+                prepareBannerCompanion(() -> notifyTransactionLoaded(transaction));
+                return;
+            }
+        }
+        notifyTransactionLoaded(transaction);
+    }
+
+    private void notifyTransactionLoaded(Transaction transaction) {
         try {
             final AdDetails adDetails = new AdDetails();
             adDetails.setTransactionId(transaction.getTransactionState());

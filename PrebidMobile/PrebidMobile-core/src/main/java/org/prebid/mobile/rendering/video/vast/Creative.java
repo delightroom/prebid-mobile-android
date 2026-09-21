@@ -41,6 +41,7 @@ public class Creative extends VASTParserBase {
     private ArrayList<CreativeExtension> creativeExtensions;
     private Linear linear;
     private ArrayList<Companion> companionAds;
+    private String companionsRequired;
     private NonLinearAds nonLinearAds;
 
     public Creative(XmlPullParser p) throws XmlPullParserException, IOException {
@@ -69,6 +70,7 @@ public class Creative extends VASTParserBase {
             }
             else if (name != null && name.equals(VAST_COMPANIONADS)) {
                 p.require(XmlPullParser.START_TAG, null, VAST_COMPANIONADS);
+                companionsRequired = p.getAttributeValue(null, "required");
                 companionAds = (new CompanionAds(p)).getCompanionAds();
                 p.require(XmlPullParser.END_TAG, null, VAST_COMPANIONADS);
             }
@@ -115,6 +117,8 @@ public class Creative extends VASTParserBase {
     public Linear getLinear() {
         return linear;
     }
+
+    public String getCompanionsRequired() { return companionsRequired; }
 
     public ArrayList<Companion> getCompanionAds() {
         return companionAds;
