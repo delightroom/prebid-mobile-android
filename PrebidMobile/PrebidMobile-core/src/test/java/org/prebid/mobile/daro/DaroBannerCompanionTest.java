@@ -210,6 +210,33 @@ public class DaroBannerCompanionTest {
         assertEquals("myapp://open", DaroBannerCompanionModel.safeClick("myapp://open"));
     }
 
+    @Test public void clickRejectsControlCharactersAndMalformedSchemes() {
+        for (String url : Arrays.asList("java\nscript:alert(1)", "java\rscript:alert(1)",
+                "java\tscript:alert(1)", "https://example.com/a\u0000b", "https://example.com/a\u007fb",
+                "1app://open", "my app://open", "https%3a://example.com", ":empty")) {
+            assertNull(url, DaroBannerCompanionModel.safeClick(url));
+        }
+        for (String url : Arrays.asList("https://example.com/path?q=1&b=2", "myapp://open",
+                "my.app-v2+test://open", "intent://open#Intent;scheme=myapp;end")) {
+            assertEquals(url, DaroBannerCompanionModel.safeClick(url));
+        }
+        assertNull(DaroBannerCompanionModel.safeClick("JaVaScRiPt:alert(1)"));
+    }
+
+    @Test public void unsafeVastClickKeepsImageButDoesNotCreateAnchor() throws Exception {
+        for (String click : Arrays.asList("java\nscript:alert(1)", "java\tscript:alert(1)")) {
+            for (String text : Arrays.asList(click, "<![CDATA[" + click + "]]>")) {
+                DaroBannerCompanionModel model = DaroBannerCompanionModel.fromVast(parse("InLine",
+                        companion("", resource("image.jpg") + "<CompanionClickThrough>" + text
+                                + "</CompanionClickThrough>"), "none"), config());
+                assertNull(model.getClickUrl());
+                assertTrue(model.getHtml().contains("image.jpg"));
+                assertFalse(model.getHtml().contains("<a "));
+                assertFalse(model.getHtml().contains("alert(1)"));
+            }
+        }
+    }
+
     @Test public void htmlEscapesUrlsAndDoesNotRewriteServerPadding() {
         String html = DaroBannerCompanionModel.html("https://example.com/tr:w-320,h-50,cm-pad_resize/a.jpg?q=\"&x=1", "https://example.com/click?a=1&b=2");
         assertTrue(html.contains("tr:w-320,h-50,cm-pad_resize"));

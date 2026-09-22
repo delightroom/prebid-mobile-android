@@ -1,7 +1,6 @@
 package org.prebid.mobile.daro;
 
 import android.text.TextUtils;
-import android.net.Uri;
 import org.prebid.mobile.AdSize;
 import org.prebid.mobile.api.data.AdFormat;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
@@ -172,12 +171,20 @@ public final class DaroBannerCompanionModel extends CreativeModel {
 
     static String safeClick(String click) {
         if (TextUtils.isEmpty(click)) return null;
-        String scheme = Uri.parse(click.trim()).getScheme();
-        if (scheme == null) return null;
+        // Browser URL parsing removes ASCII tabs/newlines; reject them before scheme validation.
+        for (int i = 0; i < click.length(); i++) {
+            char c = click.charAt(i);
+            if (c < 0x20 || c == 0x7f) return null;
+        }
+        String url = click.trim();
+        int colon = url.indexOf(':');
+        if (colon <= 0) return null;
+        String scheme = url.substring(0, colon);
+        if (!scheme.matches("[A-Za-z][A-Za-z0-9+.-]*")) return null;
         switch (scheme.toLowerCase(Locale.ROOT)) {
             case "javascript": case "data": case "file": case "content": case "blob": case "about":
                 return null;
-            default: return click.trim(); // HTTP(S), intent and app deep links go through the existing click handler.
+            default: return url; // HTTP(S), intent and app deep links go through the existing click handler.
         }
     }
 
