@@ -632,6 +632,9 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
         AbstractCreative video = currentCreative;
         DaroBannerCompanionCreative companion = bannerCompanion;
         long generation = lifecycleGeneration;
+        // Video completion has already been tracked. End its OM session before removing its view.
+        Transaction transaction = transactionManager.getCurrentTransaction();
+        if (transaction != null) transaction.stopOmAdSession();
         currentCreative = companion;
         adViewListener.viewReadyForImmediateDisplay(companion.getCreativeView());
         if (generation != lifecycleGeneration) return;

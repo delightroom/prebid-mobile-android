@@ -167,7 +167,7 @@ public class Transaction {
         return true;
     }
 
-    private void stopOmAdSession() {
+    public void stopOmAdSession() {
         if (omAdSessionManager == null) {
             LogUtil.error(TAG, "Failed to stopOmAdSession. OmAdSessionManager is null");
             return;

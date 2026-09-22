@@ -1,6 +1,9 @@
 package org.prebid.mobile.daro;
 
 import android.widget.FrameLayout;
+import org.mockito.InOrder;
+import org.prebid.mobile.rendering.loading.Transaction;
+import org.prebid.mobile.rendering.loading.TransactionManager;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.prebid.mobile.AdSize;
@@ -148,11 +151,20 @@ public class DaroBannerCompanionTest {
         when(image.getCreativeView()).thenReturn(mock(PrebidWebViewBase.class));
         WhiteBox.setInternalState(manager, "currentCreative", video);
         WhiteBox.setInternalState(manager, "bannerCompanion", image);
+        TransactionManager transactions = mock(TransactionManager.class);
+        Transaction transaction = mock(Transaction.class);
+        when(transactions.getCurrentTransaction()).thenReturn(transaction);
+        WhiteBox.setInternalState(manager, "transactionManager", transactions);
         manager.creativeDidComplete(video);
         verify(listener).videoCreativePlaybackFinished();
         verify(listener).viewReadyForImmediateDisplay(image.getCreativeView());
         verify(image).display();
         verify(video).destroy();
+        InOrder order = inOrder(listener, transaction, video);
+        order.verify(listener).videoCreativePlaybackFinished();
+        order.verify(transaction).stopOmAdSession();
+        order.verify(listener).viewReadyForImmediateDisplay(image.getCreativeView());
+        order.verify(video).destroy();
         manager.creativeDidTrackImpression(image);
         verify(listener, never()).adDisplayed();
         verify(interstitial).setAdViewManagerInterstitialDelegate(any());
