@@ -17,6 +17,7 @@
 package org.prebid.mobile.rendering.loading;
 
 import android.app.Activity;
+import org.prebid.mobile.rendering.session.manager.OmAdSessionManager;
 import android.content.Context;
 import org.junit.After;
 import org.junit.Before;
@@ -52,6 +53,18 @@ public class TransactionTest {
     @After
     public void tearDown() throws Exception {
 
+    }
+
+    @Test
+    public void endCardSessionStopIsNotRepeatedOnTransactionDestroy() throws Exception {
+        Transaction transaction = Transaction.createTransaction(mockContext,
+                createModelResult(Collections.singletonList(mock(CreativeModel.class)), "ts"),
+                mock(InterstitialManager.class), mock(Transaction.Listener.class));
+        OmAdSessionManager om = mock(OmAdSessionManager.class);
+        WhiteBox.setInternalState(transaction, "omAdSessionManager", om);
+        transaction.stopOmAdSession();
+        transaction.destroy();
+        verify(om, times(1)).stopAdSession();
     }
 
     @Test

@@ -30,6 +30,12 @@ import java.util.HashMap;
 
 public class VideoCreativeModel extends CreativeModel {
 
+    private org.prebid.mobile.daro.DaroBannerCompanionModel bannerCompanion;
+
+    public org.prebid.mobile.daro.DaroBannerCompanionModel getBannerCompanion() { return bannerCompanion; }
+
+    public void setBannerCompanion(org.prebid.mobile.daro.DaroBannerCompanionModel companion) { bannerCompanion = companion; }
+
     private static String TAG = VideoCreativeModel.class.getSimpleName();
 
     private HashMap<VideoAdEvent.Event, ArrayList<String>> videoEventUrls = new HashMap<>();

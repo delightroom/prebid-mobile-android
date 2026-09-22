@@ -184,6 +184,18 @@ public class CreativeModelsMakerVast extends CreativeModelsMaker {
             result.creativeModels = new ArrayList<>();
             result.creativeModels.add(videoModel);
 
+            if (org.prebid.mobile.daro.DaroBannerCompanionModel.isInBanner(adConfiguration)) {
+                try {
+                    videoModel.setBannerCompanion(org.prebid.mobile.daro.DaroBannerCompanionModel.fromVast(rootVastParser, adConfiguration));
+                } catch (IllegalArgumentException invalidRequiredCompanion) {
+                    notifyErrorListener(invalidRequiredCompanion.getMessage());
+                    return;
+                }
+                // An optional image must never hold up or fail the video transaction.
+                listener.onCreativeModelReady(result);
+                return;
+            }
+
             CreativeModel endCardModel = new CreativeModel(trackingManager, omEventTracker, adConfiguration);
             endCardModel.setName(HTML_CREATIVE_TAG);
             endCardModel.setHasEndCard(true);

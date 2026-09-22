@@ -86,6 +86,22 @@ public class ExoPlayerViewTest {
     }
 
     @Test
+    public void inBannerDurationStopPreservesSurfaceUntilDestroyAndCompletesOnce() throws Exception {
+        org.prebid.mobile.configuration.AdUnitConfiguration config = new org.prebid.mobile.configuration.AdUnitConfiguration();
+        config.setBuiltInVideo(true);
+        config.setPlacementType(org.prebid.mobile.rendering.models.PlacementType.IN_BANNER);
+        WhiteBox.field(ExoPlayerView.class, "config").set(exoPlayerView, config);
+        exoPlayerView.forceStop();
+        exoPlayerView.forceStop();
+        verify(mockExoPlayer).setPlayWhenReady(false);
+        verify(mockExoPlayer, never()).stop();
+        verify(mockExoPlayer, never()).release();
+        verify(mockVideoCreative).onDisplayCompleted();
+        exoPlayerView.destroy();
+        verify(mockExoPlayer).release();
+    }
+
+    @Test
     public void setValidVolume_TrackEventAndChangePlayerVolume() {
         exoPlayerView.setVolume(1);
 
