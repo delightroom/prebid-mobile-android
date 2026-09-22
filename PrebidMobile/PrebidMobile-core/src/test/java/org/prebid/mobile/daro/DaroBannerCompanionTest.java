@@ -111,6 +111,30 @@ public class DaroBannerCompanionTest {
                 + companion("id='b'", resource("b.jpg")), "all"), config());
     }
 
+    @Test public void requiredGroupWinsOverBetterOptionalCandidate() throws Exception {
+        for (String requirement : Arrays.asList("any", "all")) {
+            for (String optionalMode : Arrays.asList("", " renderingMode='end-card'")) {
+                String required = companion("width='1080' height='1920'", resource("required.jpg"));
+                String optional = companion("width='320' height='50'" + optionalMode, resource("optional.jpg"));
+                String groups = "<CompanionAds required='" + requirement + "'>" + required
+                        + "</CompanionAds></Creative><Creative><CompanionAds required='none'>" + optional
+                        + "</CompanionAds>";
+                AdResponseParserVast parser = new AdResponseParserVast("<VAST version='4.0'><Ad><InLine>"
+                        + "<Creatives><Creative>" + groups + "</Creative></Creatives></InLine></Ad></VAST>");
+                DaroBannerCompanionModel model = DaroBannerCompanionModel.fromVast(parser, config());
+                assertTrue(model.isRequired());
+                assertTrue(model.getHtml().contains("required.jpg"));
+            }
+        }
+    }
+
+    @Test public void wrapperRequirementFiltersInlineCandidatesBeforeRanking() throws Exception {
+        AdResponseParserVast root = parse("Wrapper", companion("id='required'", ""), "any");
+        root.setWrapper(parse("InLine", companion("id='required'", resource("required.jpg"))
+                + companion("id='optional' renderingMode='end-card'", resource("optional.jpg")), "none"));
+        assertTrue(DaroBannerCompanionModel.fromVast(root, config()).getHtml().contains("required.jpg"));
+    }
+
     @Test public void completionSwapsOnlyReadyImageAndNeverReportsAnotherImpression() throws Exception {
         AdViewManagerListener listener = mock(AdViewManagerListener.class);
         InterstitialManager interstitial = mock(InterstitialManager.class);

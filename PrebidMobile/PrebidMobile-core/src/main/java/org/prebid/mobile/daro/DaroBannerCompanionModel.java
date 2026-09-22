@@ -60,30 +60,14 @@ public final class DaroBannerCompanionModel extends CreativeModel {
             for (Creative creative : chain.get(depth)) {
                 if (creative.getCompanionAds() == null) continue;
                 for (Companion candidate : creative.getCompanionAds()) {
-                    if (supported(candidate) && better(candidate, selected, width, height)) selected = candidate;
+                    if (supported(candidate) && satisfiesRequired(chain, candidate)
+                            && better(candidate, selected, width, height)) selected = candidate;
                 }
             }
             if (selected != null) selectedDepth = depth;
         }
-        boolean required = false;
-        boolean unmet = false;
-        for (List<Creative> creatives : chain) {
-            for (Creative creative : creatives) {
-                String requirement = creative.getCompanionsRequired();
-                if (!"all".equals(requirement) && !"any".equals(requirement)) continue;
-                required = true;
-                List<Companion> companions = creative.getCompanionAds();
-                int matched = 0;
-                if (companions != null) {
-                    for (Companion companion : companions) {
-                        if (selected != null && (companion == selected || (companion.getStaticResource() == null && companion.getHtmlResource() == null
-                                && companion.getIFrameResource() == null && matches(companion, selected)))) matched++;
-                    }
-                }
-                if (matched == 0 || ("all".equals(requirement) && matched != companions.size())) unmet = true;
-            }
-        }
-        if (unmet) {
+        boolean required = !satisfiesRequired(chain, null);
+        if (required && selected == null) {
             VastErrorTracker.fire(root.getErrorUrls(), 602);
             throw new IllegalArgumentException("Required banner companions cannot fit the single end-card slot");
         }
@@ -117,6 +101,25 @@ public final class DaroBannerCompanionModel extends CreativeModel {
         model.registerTrackingEvent(TrackingEvent.Events.IMPRESSION, views);
         model.registerTrackingEvent(TrackingEvent.Events.CLICK, clicks);
         return model;
+    }
+
+    private static boolean satisfiesRequired(List<List<Creative>> chain, Companion candidate) {
+        for (List<Creative> creatives : chain) {
+            for (Creative creative : creatives) {
+                String requirement = creative.getCompanionsRequired();
+                if (!"all".equals(requirement) && !"any".equals(requirement)) continue;
+                if (candidate == null) return false;
+                List<Companion> companions = creative.getCompanionAds();
+                if (companions == null || companions.isEmpty()) return false;
+                int matched = 0;
+                for (Companion companion : companions) {
+                    if (companion == candidate || (companion.getStaticResource() == null && companion.getHtmlResource() == null
+                            && companion.getIFrameResource() == null && matches(companion, candidate))) matched++;
+                }
+                if (matched == 0 || ("all".equals(requirement) && matched != companions.size())) return false;
+            }
+        }
+        return true;
     }
 
     private static void collect(Companion companion, ArrayList<String> views, ArrayList<String> clicks) {
