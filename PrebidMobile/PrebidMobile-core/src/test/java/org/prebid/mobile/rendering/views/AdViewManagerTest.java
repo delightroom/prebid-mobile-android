@@ -465,6 +465,26 @@ public class AdViewManagerTest {
     }
 
     @Test
+    public void daroCompanionWindowFailureDisposesWindowsAndClosesInsteadOfLeavingBlankActivity() throws Exception {
+        AdViewManager.AdViewManagerInterstitialDelegate delegate = captureInterstitialDelegate();
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setDaroFullscreenRenderer(true);
+        mockVideoCreativeWithConfiguration(configuration);
+        TransactionManager transactions = mockTransactionWithEndCard();
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, transactions);
+        WhiteBox.field(AdViewManager.class, "adConfiguration").set(adViewManager, configuration);
+        WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, mockAdView);
+        doThrow(new android.view.WindowManager.BadTokenException("dead window"))
+            .when(mockInterstitialManager).displayAdViewInInterstitial(any(), eq(mockAdView), any());
+        Runnable shown = mock(Runnable.class);
+        assertTrue(delegate.handleVideoInterstitialClose(shown));
+        verify(mockAdView).dismissInterstitialAfterFailure();
+        verify(mockInterstitialManager).interstitialAdClosed();
+        verify(shown, never()).run();
+        verify(mockAdViewListener, never()).adCompleted();
+    }
+
+    @Test
     public void videoInterstitialClose_DaroInterstitial_AdvancesToEndCardAfterShown() throws Exception {
         AdViewManager.AdViewManagerInterstitialDelegate delegate = captureInterstitialDelegate();
 

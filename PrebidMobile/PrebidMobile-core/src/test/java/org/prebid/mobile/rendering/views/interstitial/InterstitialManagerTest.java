@@ -26,6 +26,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.prebid.mobile.api.rendering.InterstitialView;
+import org.prebid.mobile.configuration.AdUnitConfiguration;
 import org.prebid.mobile.api.rendering.VideoView;
 import org.prebid.mobile.rendering.interstitial.AdBaseDialog;
 import org.prebid.mobile.rendering.interstitial.AdInterstitialDialog;
@@ -189,6 +190,57 @@ public class InterstitialManagerTest {
         spyInterstitialManager.displayAdViewInInterstitial(context, mockInterstitialView);
 
         verify(mockAdViewDelegate).showInterstitial();
+    }
+
+    @Test
+    @LooperMode(LooperMode.Mode.PAUSED)
+    public void endCardUsesPresentationWindowAfterPublisherActivityIsDestroyed() throws Exception {
+        Activity presentation = Robolectric.buildActivity(Activity.class).setup().get();
+        spyInterstitialManager.setDaroPresentationActivity(presentation);
+        ((Activity) context).finish();
+        BaseJSInterface js = mock(BaseJSInterface.class);
+        when(js.getJsExecutor()).thenReturn(mock(JsExecutor.class));
+        WebViewBase web = mock(WebViewBase.class);
+        when(web.getMRAIDInterface()).thenReturn(js);
+        PrebidWebViewInterstitial creative = mock(PrebidWebViewInterstitial.class);
+        when(creative.getWebView()).thenReturn(web);
+        InterstitialView view = mock(InterstitialView.class);
+        when(view.getCreativeView()).thenReturn(creative);
+        spyInterstitialManager.displayAdViewInInterstitial(context, view);
+        AdInterstitialDialog dialog = (AdInterstitialDialog) WhiteBox.field(InterstitialManager.class, "interstitialDialog").get(spyInterstitialManager);
+        Context windowContext = dialog.getContext();
+        while (windowContext instanceof android.content.ContextWrapper && !(windowContext instanceof Activity)) {
+            windowContext = ((android.content.ContextWrapper) windowContext).getBaseContext();
+        }
+        org.junit.Assert.assertSame(presentation, windowContext);
+        org.junit.Assert.assertTrue(dialog.isShowing());
+        dialog.dismiss();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void daroCompanionRejectsDeadPresentationAndDeadFallback() {
+        Activity presentation = Robolectric.buildActivity(Activity.class).setup().get();
+        AdUnitConfiguration config = new AdUnitConfiguration();
+        config.setDaroFullscreenRenderer(true);
+        spyInterstitialManager.configureInterstitialProperties(config);
+        spyInterstitialManager.setDaroPresentationActivity(presentation);
+        presentation.finish();
+        ((Activity) context).finish();
+        try {
+            spyInterstitialManager.displayAdViewInInterstitial(context, mock(InterstitialView.class));
+        } finally {
+            verify(mockAdViewDelegate, never()).showInterstitial();
+        }
+    }
+
+    @Test
+    public void destroyDismissesCompanionExactlyOnce() throws Exception {
+        AdInterstitialDialog dialog = mock(AdInterstitialDialog.class);
+        WhiteBox.field(InterstitialManager.class, "interstitialDialog").set(spyInterstitialManager, dialog);
+        spyInterstitialManager.destroy();
+        spyInterstitialManager.destroy();
+        verify(dialog).nullifyDialog();
+        assertEquals(null, WhiteBox.field(InterstitialManager.class, "interstitialDialog").get(spyInterstitialManager));
     }
 
     @Test

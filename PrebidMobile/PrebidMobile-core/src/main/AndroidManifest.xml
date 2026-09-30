@@ -11,6 +11,11 @@
             android:name="org.apache.http.legacy"
             android:required="false" />
         <activity
+                android:name="org.prebid.mobile.daro.DaroPrebidFullscreenActivity"
+                android:exported="false"
+                android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|uiMode|density|keyboardHidden"
+                android:theme="@style/FullScreenDialogTheme" />
+        <activity
                 android:exported="true"
                 android:name="org.prebid.mobile.rendering.views.browser.AdBrowserActivity"
                 android:configChanges="orientation|screenSize|keyboardHidden"

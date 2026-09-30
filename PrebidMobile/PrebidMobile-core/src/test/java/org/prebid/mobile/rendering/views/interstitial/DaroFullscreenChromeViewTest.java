@@ -46,6 +46,35 @@ public class DaroFullscreenChromeViewTest {
     }
 
     @Test
+    public void landscapeResizeUsesWideCtaAndSafeFooterWithoutResettingControlState() {
+        chromeView.setSafeAreaInsets(0, dp(20), dp(34), dp(10));
+        chromeView.setCallToActionVisible(true);
+        chromeView.setSoundMuted(true);
+        chromeView.showSkipCountdown(3);
+        chromeView.setProgressFraction(0.6f);
+        chromeView.showRewardUnlocked(true);
+        chromeView.layout(0, 0, dp(844), dp(390));
+        FrameLayout.LayoutParams cta = (FrameLayout.LayoutParams) chromeView.getCallToActionButton().getLayoutParams();
+        assertEquals(dp(480), cta.width);
+        assertEquals(dp(177), cta.leftMargin);
+        assertEquals(dp(66), cta.bottomMargin);
+        FrameLayout.LayoutParams footer = (FrameLayout.LayoutParams) chromeView.getFooterBadge().getLayoutParams();
+        assertEquals(dp(34), footer.bottomMargin);
+        assertEquals("on", chromeView.getSoundButton().getTag());
+        assertEquals("3s", chromeView.getSkipSecondaryText().getText().toString());
+        assertEquals(0.6f, chromeView.getProgressFraction(), 0f);
+        assertEquals(View.VISIBLE, chromeView.getRewardToast().getVisibility());
+        chromeView.layout(0, 0, dp(480), dp(390));
+        cta = (FrameLayout.LayoutParams) chromeView.getCallToActionButton().getLayoutParams();
+        assertEquals(dp(402), cta.width);
+        assertEquals(dp(34), cta.leftMargin);
+        chromeView.layout(0, 0, dp(390), dp(844));
+        cta = (FrameLayout.LayoutParams) chromeView.getCallToActionButton().getLayoutParams();
+        assertEquals(dp(151), cta.width);
+        assertEquals(dp(148), cta.bottomMargin);
+    }
+
+    @Test
     public void init_HidesActionControlsUntilRendererStateArrives() {
         assertEquals(View.GONE, chromeView.findViewById(R.id.iv_close_interstitial).getVisibility());
         assertEquals(View.GONE, chromeView.findViewById(R.id.iv_skip).getVisibility());

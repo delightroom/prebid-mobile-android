@@ -22,6 +22,7 @@ import android.os.Build;
 import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -97,6 +98,7 @@ public class InterstitialVideo extends AdBaseDialog {
     private long closeButtonDelayInMs = -1;
     private long closeButtonTimerStartedAtMs = -1;
     private boolean videoPaused = true;
+    private long daroProgressDurationMs;
 
     public InterstitialVideo(
             Context context,
@@ -107,6 +109,7 @@ public class InterstitialVideo extends AdBaseDialog {
         super(context, interstitialManager);
         contextReference = new WeakReference<>(context);
         this.config = config;
+        if (config.isDaroFullscreenRenderer()) setCancelable(false);
         isRewarded = this.config.isRewarded();
         adViewContainer = adView;
         init();
@@ -131,6 +134,7 @@ public class InterstitialVideo extends AdBaseDialog {
 
     @Override
     protected void handleDialogShow() {
+        videoPaused = false;
         handleAdViewShow();
         ensureDaroChromeView();
         ensureDaroSoundControl();
@@ -224,12 +228,13 @@ public class InterstitialVideo extends AdBaseDialog {
 
     public void resumeVideo() {
         LogUtil.debug(TAG, "Action: resumeVideo");
+        if (!videoPaused) return;
         videoPaused = false;
 
         int remainingTimerTimeInMs = getRemainingTimerTimeInMs();
         int closeDelayInMs = getRemainingCloseDelayInMs();
         if (isRewarded) {
-            if (remainingTimerTimeInMs > 500L || closeDelayInMs >= 0) {
+            if (remainingTimerTimeInMs > 0L || closeDelayInMs >= 0) {
                 scheduleRewardResumeTimers(
                     Math.max(0, remainingTimerTimeInMs),
                     closeDelayInMs >= 0 ? closeDelayInMs : Math.max(0, remainingTimerTimeInMs)
@@ -238,9 +243,37 @@ public class InterstitialVideo extends AdBaseDialog {
             return;
         }
 
-        if (remainingTimerTimeInMs != AdUnitConfiguration.SKIP_OFFSET_NOT_ASSIGNED && remainingTimerTimeInMs > 500L) {
+        if (isDaroFullscreenRenderer() && closeDelayInMs >= 0) {
+            stopTimer();
+            timer = new Timer();
+            createCurrentTimerTask();
+            scheduleCloseButtonTask(closeDelayInMs);
+            startTimer(Math.max(0, remainingTimerTimeInMs));
+        } else if (remainingTimerTimeInMs != AdUnitConfiguration.SKIP_OFFSET_NOT_ASSIGNED && remainingTimerTimeInMs > 0L) {
             scheduleShowCloseBtnTask(adViewContainer, remainingTimerTimeInMs);
         }
+    }
+
+    private void finishEndCardHandoff() {
+        if (adViewContainer instanceof org.prebid.mobile.api.rendering.InterstitialView) {
+            ((org.prebid.mobile.api.rendering.InterstitialView) adViewContainer).hideInterstitialVideo();
+        } else {
+            dispose();
+        }
+    }
+
+    /** Releases the video window after handoff without closing the new companion. */
+    public void dispose() {
+        setDialogListener(null);
+        stopTimer();
+        currentTimerTaskHash = 0;
+        stopSkipCountDownTimer();
+        stopCountDownTimer();
+        if (handler != null) handler.removeCallbacksAndMessages(null);
+        cleanup();
+        daroChromeView = null;
+        legacyCallToActionView = null;
+        adViewContainer = null;
     }
 
     /**
@@ -264,7 +297,7 @@ public class InterstitialVideo extends AdBaseDialog {
     }
 
     public void close() {
-        if (interstitialManager.handleVideoInterstitialClose(this::hide)) {
+        if (interstitialManager.handleVideoInterstitialClose(this::finishEndCardHandoff)) {
             stopTimer();
             stopSkipCountDownTimer();
             stopCountDownTimer();
@@ -327,7 +360,7 @@ public class InterstitialVideo extends AdBaseDialog {
             }
             daroSkipHandled = true;
             v.setEnabled(false);
-            if (interstitialManager.handleVideoInterstitialSkip(this::hide)) {
+            if (interstitialManager.handleVideoInterstitialSkip(this::finishEndCardHandoff)) {
                 stopTimer();
                 stopSkipCountDownTimer();
                 stopCountDownTimer();
@@ -488,6 +521,10 @@ public class InterstitialVideo extends AdBaseDialog {
             scheduleCloseButtonTask(delayToShowCloseButton);
         }
 
+        if (isDaroFullscreenRenderer()) {
+            daroProgressDurationMs = isRewarded ? getRewardProgressDurationMs(delayInMs) : delayInMs;
+        }
+
         // Show timer until close
         if (isRewarded) {
             if (isDaroFullscreenRenderer()) {
@@ -503,7 +540,7 @@ public class InterstitialVideo extends AdBaseDialog {
     protected void scheduleCloseButtonTask(long delayInMs) {
         remainingCloseDelayInMs = (int) delayInMs;
         closeButtonDelayInMs = delayInMs;
-        closeButtonTimerStartedAtMs = System.currentTimeMillis();
+        closeButtonTimerStartedAtMs = SystemClock.elapsedRealtime();
         timer.schedule(showCloseButtonTask, delayInMs);
     }
 
@@ -542,6 +579,7 @@ public class InterstitialVideo extends AdBaseDialog {
     }
 
     protected void startTimer(long durationInMillis) {
+        remainingTimeInMs = (int) durationInMillis;
         if (countDownTimer != null) {
             countDownTimer.cancel();
         }
@@ -574,6 +612,7 @@ public class InterstitialVideo extends AdBaseDialog {
      */
     @VisibleForTesting
     protected void showDurationTimer(long durationInMillis) {
+        remainingTimeInMs = (int) durationInMillis;
         if (durationInMillis == 0) {
             remainingTimeInMs = 0;
             if (daroChromeView != null) {
@@ -782,6 +821,13 @@ public class InterstitialVideo extends AdBaseDialog {
         daroChromeView = createDaroFullscreenChromeView(context);
         daroChromeView.setSoundButtonVisible(false);
         bindLegacyCallToAction();
+        daroChromeView.setOnApplyWindowInsetsListener((view, insets) -> {
+            CustomInsets safe = DaroFullscreenChromeView.safeAreaInsets(insets);
+            daroChromeView.setSafeAreaInsets(safe.getTop(), safe.getRight(), safe.getBottom(), safe.getLeft());
+            return insets;
+        });
+        daroChromeView.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) ->
+            view.requestApplyInsets());
         applyDaroChromeInsets();
         Views.removeFromParent(daroChromeView);
         addContentView(
@@ -835,15 +881,11 @@ public class InterstitialVideo extends AdBaseDialog {
             return;
         }
 
-        Context context = daroChromeView.getContext();
-        CustomInsets navigationInsets = InsetsUtils.getNavigationInsets(context);
-        CustomInsets cutoutInsets = InsetsUtils.getCutoutInsets(context);
-        daroChromeView.setSafeAreaInsets(
-            navigationInsets.getTop() + cutoutInsets.getTop(),
-            navigationInsets.getRight() + cutoutInsets.getRight(),
-            navigationInsets.getBottom() + cutoutInsets.getBottom(),
-            navigationInsets.getLeft() + cutoutInsets.getLeft()
-        );
+        android.view.WindowInsets insets = getWindow().getDecorView().getRootWindowInsets();
+        if (insets != null) {
+            CustomInsets safe = DaroFullscreenChromeView.safeAreaInsets(insets);
+            daroChromeView.setSafeAreaInsets(safe.getTop(), safe.getRight(), safe.getBottom(), safe.getLeft());
+        }
         keepDaroChromeOnTop();
     }
 
@@ -862,7 +904,9 @@ public class InterstitialVideo extends AdBaseDialog {
             return;
         }
 
-        float progress = (durationInMillis - millisUntilFinished) / (float) durationInMillis;
+        long totalDurationMs = isDaroFullscreenRenderer() && daroProgressDurationMs > 0
+            ? daroProgressDurationMs : durationInMillis;
+        float progress = (totalDurationMs - millisUntilFinished) / (float) totalDurationMs;
         daroChromeView.setProgressFraction(progress);
         keepDaroChromeOnTop();
     }
@@ -891,7 +935,7 @@ public class InterstitialVideo extends AdBaseDialog {
             return;
         }
 
-        long elapsedMs = System.currentTimeMillis() - closeButtonTimerStartedAtMs;
+        long elapsedMs = SystemClock.elapsedRealtime() - closeButtonTimerStartedAtMs;
         remainingCloseDelayInMs = (int) Math.max(0, closeButtonDelayInMs - elapsedMs);
         closeButtonDelayInMs = -1;
         closeButtonTimerStartedAtMs = -1;

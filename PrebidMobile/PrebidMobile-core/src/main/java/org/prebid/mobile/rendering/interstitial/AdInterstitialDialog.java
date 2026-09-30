@@ -38,7 +38,6 @@ import org.prebid.mobile.rendering.interstitial.rewarded.RewardedClosingRules;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardedCompletionRules;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardedExt;
 import org.prebid.mobile.rendering.utils.helpers.CustomInsets;
-import org.prebid.mobile.rendering.utils.helpers.InsetsUtils;
 import org.prebid.mobile.rendering.views.interstitial.DaroFullscreenChromeView;
 import org.prebid.mobile.rendering.views.interstitial.InterstitialManager;
 import org.prebid.mobile.rendering.views.webview.WebViewBase;
@@ -56,6 +55,7 @@ public class AdInterstitialDialog extends AdBaseDialog {
     private RewardedCustomTimer timer;
     @Nullable
     private FragmentManager.FragmentLifecycleCallbacks lifecycleListener;
+    private final Handler closeButtonHandler = new Handler(Looper.getMainLooper());
     @Nullable
     private DaroFullscreenChromeView daroEndCardChromeView;
 
@@ -69,6 +69,10 @@ public class AdInterstitialDialog extends AdBaseDialog {
                                 InterstitialManager interstitialManager) {
         super(context, webViewBaseLocal, interstitialManager);
         this.adViewContainer = adViewContainer;
+        InterstitialDisplayPropertiesInternal properties = interstitialManager.getInterstitialDisplayProperties();
+        if (properties != null && properties.config != null && properties.config.isDaroFullscreenRenderer()) {
+            setCancelable(false);
+        }
 
 
         preInit();
@@ -140,13 +144,19 @@ public class AdInterstitialDialog extends AdBaseDialog {
     }
 
     public void nullifyDialog() {
-        cancel();
         cleanup();
     }
 
     @Override
     public void cleanup() {
+        closeButtonHandler.removeCallbacksAndMessages(null);
+        destroyRewardedListeners();
         super.cleanup();
+        if (daroEndCardChromeView != null) {
+            Views.removeFromParent(daroEndCardChromeView);
+            daroEndCardChromeView = null;
+        }
+        if (webViewBase != null) webViewBase.setDialog(null);
     }
 
 
@@ -190,8 +200,7 @@ public class AdInterstitialDialog extends AdBaseDialog {
 
     protected void scheduleCloseButtonDisplaying(int closeButtonDelay, boolean autoClose) {
         LogUtil.debug(TAG, "Scheduled close button displaying in " + closeButtonDelay + "ms with autoclose " + autoClose);
-        Handler handler = new Handler(Looper.getMainLooper());
-        handler.postDelayed(new DisplayCloseButtonRunnable(this, autoClose), closeButtonDelay);
+        closeButtonHandler.postDelayed(new DisplayCloseButtonRunnable(this, autoClose), closeButtonDelay);
         destroyRewardedListeners();
     }
 
@@ -236,11 +245,13 @@ public class AdInterstitialDialog extends AdBaseDialog {
     }
 
     private void destroyRewardedListeners() {
-        FragmentManager fragmentManager = getActivity().getFragmentManager();
+        Activity activity = getActivity();
+        FragmentManager fragmentManager = activity != null ? activity.getFragmentManager() : null;
         if (fragmentManager != null && lifecycleListener != null) {
             fragmentManager.unregisterFragmentLifecycleCallbacks(lifecycleListener);
         }
 
+        lifecycleListener = null;
         cancelRewardedTimer();
     }
 
@@ -283,6 +294,12 @@ public class AdInterstitialDialog extends AdBaseDialog {
 
         daroEndCardChromeView = createDaroEndCardChromeView();
         daroEndCardChromeView.showEndCardLayout();
+        daroEndCardChromeView.setOnApplyWindowInsetsListener((view, insets) -> {
+            applyDaroChromeInsets(DaroFullscreenChromeView.safeAreaInsets(insets));
+            return insets;
+        });
+        daroEndCardChromeView.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) ->
+            view.requestApplyInsets());
         applyDaroChromeInsets();
         Views.removeFromParent(daroEndCardChromeView);
         adViewContainer.addView(
@@ -305,16 +322,23 @@ public class AdInterstitialDialog extends AdBaseDialog {
             return;
         }
 
-        Activity activity = getActivity();
-        Context context = activity != null ? activity : getContext();
-        CustomInsets navigationInsets = InsetsUtils.getNavigationInsets(context);
-        CustomInsets cutoutInsets = InsetsUtils.getCutoutInsets(context);
-        daroEndCardChromeView.setSafeAreaInsets(
-            navigationInsets.getTop() + cutoutInsets.getTop(),
-            navigationInsets.getRight() + cutoutInsets.getRight(),
-            navigationInsets.getBottom() + cutoutInsets.getBottom(),
-            navigationInsets.getLeft() + cutoutInsets.getLeft()
-        );
+        android.view.WindowInsets insets = getWindow().getDecorView().getRootWindowInsets();
+        if (insets != null) applyDaroChromeInsets(DaroFullscreenChromeView.safeAreaInsets(insets));
+    }
+
+    private void applyDaroChromeInsets(CustomInsets safe) {
+        int top = safe.getTop(), right = safe.getRight(), bottom = safe.getBottom(), left = safe.getLeft();
+        daroEndCardChromeView.setSafeAreaInsets(top, right, bottom, left);
+        // Android WebView does not consistently expose window insets through CSS env().
+        // These variables are consumed only by Daro's static companion stylesheet.
+        if (webViewBase != null) {
+            float density = daroEndCardChromeView.getResources().getDisplayMetrics().density;
+            webViewBase.evaluateJavascript("(function(){var s=document.documentElement.style;"
+                + "s.setProperty('--daro-safe-top','" + top / density + "px');"
+                + "s.setProperty('--daro-safe-right','" + right / density + "px');"
+                + "s.setProperty('--daro-safe-bottom','" + bottom / density + "px');"
+                + "s.setProperty('--daro-safe-left','" + left / density + "px');})()", null);
+        }
     }
 
     private void keepDaroEndCardChromeOnTop() {

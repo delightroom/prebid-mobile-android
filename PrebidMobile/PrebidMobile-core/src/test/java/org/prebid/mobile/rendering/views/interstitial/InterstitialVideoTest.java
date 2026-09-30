@@ -231,19 +231,17 @@ public class InterstitialVideoTest {
     }
 
     @Test
-    public void close_WhenManagerHandlesVideoClose_HidesAfterEndCardShown() {
+    public void close_WhenManagerHandlesVideoClose_ReleasesOwnerVideoAfterEndCardShown() {
         ArgumentCaptor<Runnable> onEndCardShownCaptor = ArgumentCaptor.forClass(Runnable.class);
         when(mockInterstitialManager.handleVideoInterstitialClose(any(Runnable.class))).thenReturn(true);
-        doNothing().when(spyInterstitialVideo).hide();
-
         spyInterstitialVideo.close();
 
-        verify(spyInterstitialVideo, never()).hide();
+        verify(mockAdView, never()).hideInterstitialVideo();
         verify(mockInterstitialManager).handleVideoInterstitialClose(onEndCardShownCaptor.capture());
 
         onEndCardShownCaptor.getValue().run();
 
-        verify(spyInterstitialVideo).hide();
+        verify(mockAdView).hideInterstitialVideo();
     }
 
     @Test

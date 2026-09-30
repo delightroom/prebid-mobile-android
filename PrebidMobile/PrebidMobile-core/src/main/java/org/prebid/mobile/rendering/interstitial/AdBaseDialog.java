@@ -517,6 +517,8 @@ public abstract class AdBaseDialog extends Dialog {
                 LogUtil.debug(TAG, "onShown(): Error notifying show listeners. AdBaseDialog is null.");
                 return;
             }
+            // Dialog.show() queues this listener; dismissal may happen before delivery.
+            if (!adBaseDialog.isShowing()) return;
             adBaseDialog.handleDialogShow();
             adBaseDialog.addCloseView();
 
