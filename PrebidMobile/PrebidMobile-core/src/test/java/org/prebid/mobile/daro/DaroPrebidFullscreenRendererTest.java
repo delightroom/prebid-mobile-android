@@ -380,7 +380,7 @@ public class DaroPrebidFullscreenRendererTest {
     }
 
     @Test
-    public void presentationLaunchFailureReportsOnceAndSuppressesLateCompletion() {
+    public void presentationLaunchFailureReportsOnceAndSuppressesLateCompletion() throws Exception {
         InterstitialView view = mock(InterstitialView.class);
         DaroPrebidRenderListener callbacks = mock(DaroPrebidRenderListener.class);
         DaroPrebidFullscreenRenderer renderer = loadedRenderer(view, callbacks);
@@ -396,6 +396,142 @@ public class DaroPrebidFullscreenRendererTest {
         verify(view).setInterstitialViewListener(events.capture());
         events.getValue().onAdCompleted(view);
         verify(callbacks, never()).videoCompleted();
+        assertNull(presentationId(renderer));
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(60));
+        verify(callbacks).renderFailed(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    public void silentLaunchTimesOutReleasesSessionAndRejectsLateActivity() throws Exception {
+        InterstitialView view = mock(InterstitialView.class);
+        DaroPrebidRenderListener callbacks = mock(DaroPrebidRenderListener.class);
+        DaroPrebidFullscreenRenderer renderer = loadedRenderer(view, callbacks);
+        Activity host = (Activity) view.getContext();
+        renderer.show(host);
+        android.content.Intent intent = shadowOf(host).getNextStartedActivity();
+        String id = presentationId(renderer);
+        assertTrue(sessions().containsKey(id));
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(
+            DaroPrebidFullscreenRenderer.PRESENTATION_START_TIMEOUT_MS - 1));
+        verify(callbacks, never()).renderFailed(org.mockito.ArgumentMatchers.any());
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1));
+        verify(callbacks).renderFailed(org.mockito.ArgumentMatchers.any());
+        assertFalse(sessions().containsKey(id));
+        assertNull(presentationId(renderer));
+        assertFalse(showing(renderer));
+        DaroPrebidFullscreenActivity late = Robolectric.buildActivity(DaroPrebidFullscreenActivity.class, intent).setup().get();
+        assertTrue(late.isFinishing());
+        renderer.present(late);
+        prebidEvents(view).onAdDisplayed(view);
+        prebidEvents(view).onAdClosed(view);
+        renderer.show(host);
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(60));
+        verify(callbacks).renderFailed(org.mockito.ArgumentMatchers.any());
+        verify(callbacks, never()).closed();
+        verify(callbacks, never()).renderStarted();
+        verify(view, never()).showVideoAsInterstitial(org.mockito.ArgumentMatchers.any(Activity.class));
+        renderer.destroy();
+    }
+
+    @Test
+    public void successfulPresentationCancelsStartTimeout() throws Exception {
+        InterstitialView view = mock(InterstitialView.class);
+        DaroPrebidRenderListener callbacks = mock(DaroPrebidRenderListener.class);
+        DaroPrebidFullscreenRenderer renderer = loadedRenderer(view, callbacks);
+        Activity host = (Activity) view.getContext();
+        renderer.show(host);
+        String id = presentationId(renderer);
+        Activity presentation = startPresentation(host);
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(60));
+        verify(callbacks, never()).renderFailed(org.mockito.ArgumentMatchers.any());
+        assertTrue(sessions().containsKey(id));
+        verify(view).showVideoAsInterstitial(presentation);
+        renderer.destroy();
+        assertFalse(sessions().containsKey(id));
+    }
+
+    @Test
+    public void destroyWhilePresentationPendingCancelsTimeoutAndRejectsLateActivity() throws Exception {
+        InterstitialView view = mock(InterstitialView.class);
+        DaroPrebidRenderListener callbacks = mock(DaroPrebidRenderListener.class);
+        DaroPrebidFullscreenRenderer renderer = loadedRenderer(view, callbacks);
+        Activity host = (Activity) view.getContext();
+        renderer.show(host);
+        String id = presentationId(renderer);
+        android.content.Intent intent = shadowOf(host).getNextStartedActivity();
+        renderer.destroy();
+        assertFalse(sessions().containsKey(id));
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(60));
+        Activity late = Robolectric.buildActivity(DaroPrebidFullscreenActivity.class, intent).setup().get();
+        assertTrue(late.isFinishing());
+        verify(callbacks, never()).renderFailed(org.mockito.ArgumentMatchers.any());
+        verify(callbacks, never()).closed();
+        verify(callbacks).destroyed();
+        verify(view, never()).showVideoAsInterstitial(org.mockito.ArgumentMatchers.any(Activity.class));
+    }
+
+    @Test
+    public void closeWhilePresentationPendingCancelsTimeoutAndReleasesSession() throws Exception {
+        InterstitialView view = mock(InterstitialView.class);
+        DaroPrebidRenderListener callbacks = mock(DaroPrebidRenderListener.class);
+        DaroPrebidFullscreenRenderer renderer = loadedRenderer(view, callbacks);
+        Activity host = (Activity) view.getContext();
+        renderer.show(host);
+        String id = presentationId(renderer);
+        prebidEvents(view).onAdClosed(view);
+        assertFalse(sessions().containsKey(id));
+        assertNull(presentationId(renderer));
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(60));
+        verify(callbacks, never()).renderFailed(org.mockito.ArgumentMatchers.any());
+        verify(callbacks).closed();
+        renderer.destroy();
+    }
+
+    @Test
+    public void synchronousPresentationAndCloseBeforeLaunchReturnsDoesNotRetainSession() throws Exception {
+        InterstitialView view = mock(InterstitialView.class);
+        DaroPrebidRenderListener callbacks = mock(DaroPrebidRenderListener.class);
+        DaroPrebidFullscreenRenderer renderer = loadedRenderer(view, callbacks);
+        Activity host = mock(Activity.class);
+        when(host.getRequestedOrientation()).thenReturn(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            DaroPrebidFullscreenActivity presentation = Robolectric.buildActivity(DaroPrebidFullscreenActivity.class,
+                invocation.getArgument(0)).setup().get();
+            prebidEvents(view).onAdDisplayed(view);
+            prebidEvents(view).onAdClosed(view);
+            assertTrue(presentation.isFinishing());
+            return null;
+        }).when(host).startActivity(org.mockito.ArgumentMatchers.any(android.content.Intent.class));
+        renderer.show(host);
+        assertNull(presentationId(renderer));
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(60));
+        verify(callbacks, never()).renderFailed(org.mockito.ArgumentMatchers.any());
+        verify(callbacks).closed();
+        renderer.destroy();
+    }
+
+    private InterstitialViewListener prebidEvents(InterstitialView view) {
+        ArgumentCaptor<InterstitialViewListener> events = ArgumentCaptor.forClass(InterstitialViewListener.class);
+        verify(view).setInterstitialViewListener(events.capture());
+        return events.getValue();
+    }
+
+    private String presentationId(DaroPrebidFullscreenRenderer renderer) throws Exception {
+        java.lang.reflect.Field field = DaroPrebidFullscreenRenderer.class.getDeclaredField("presentationId");
+        field.setAccessible(true);
+        return (String) field.get(renderer);
+    }
+
+    private boolean showing(DaroPrebidFullscreenRenderer renderer) throws Exception {
+        java.lang.reflect.Field field = DaroPrebidFullscreenRenderer.class.getDeclaredField("showing");
+        field.setAccessible(true);
+        return field.getBoolean(renderer);
+    }
+
+    private java.util.Map<?, ?> sessions() throws Exception {
+        java.lang.reflect.Field field = DaroPrebidFullscreenActivity.class.getDeclaredField("sessions");
+        field.setAccessible(true);
+        return (java.util.Map<?, ?>) field.get(null);
     }
 
     private DaroPrebidFullscreenActivity startPresentation(Activity host) {

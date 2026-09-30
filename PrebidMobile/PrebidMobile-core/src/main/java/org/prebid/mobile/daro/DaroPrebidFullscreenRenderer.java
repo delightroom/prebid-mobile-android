@@ -27,10 +27,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.UUID;
 
 public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandle {
     @VisibleForTesting static final int DEFAULT_DARO_SKIP_DELAY_SECONDS = 5;
     private static final int DEFAULT_HTML_REWARD_SECONDS = 5;
+    @VisibleForTesting static final long PRESENTATION_START_TIMEOUT_MS = 10_000;
+
+    private final Handler presentationHandler = new Handler(Looper.getMainLooper());
+    private final Runnable presentationStartTimeout = () -> failPresentationStart("Fullscreen Activity did not start");
 
     private final InterstitialView interstitialView;
     private final DaroPrebidRenderListener listener;
@@ -332,7 +337,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         if (destroyed) {
             return;
         }
-        if (showing) {
+        if (showing || failureSent || closedSent) {
             return;
         }
         if (!loaded) {
@@ -361,12 +366,13 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         showing = true;
         loaded = false;
         Activity host = activity != null ? activity : activityFromContext(interstitialView.getContext());
+        // Assign before launch: a synchronous Activity creation may present or fail immediately.
+        presentationId = UUID.randomUUID().toString();
+        presentationHandler.postDelayed(presentationStartTimeout, PRESENTATION_START_TIMEOUT_MS);
         try {
-            presentationId = DaroPrebidFullscreenActivity.launch(host, this);
+            DaroPrebidFullscreenActivity.launch(host, this, presentationId);
         } catch (RuntimeException error) {
-            showing = false;
-            failureSent = true;
-            listener.renderFailed(new AdException(AdException.INTERNAL_ERROR, error.getMessage()));
+            failPresentationStart(error.getMessage());
         }
     }
 
@@ -375,6 +381,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
             activity.finish();
             return;
         }
+        presentationHandler.removeCallbacks(presentationStartTimeout);
         presentationActivity = activity;
         if (renderMode == RenderMode.HTML) {
             interstitialView.showHtmlAsInterstitial(activity);
@@ -391,7 +398,17 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         }
     }
 
+    private void failPresentationStart(@Nullable String message) {
+        if (destroyed || closedSent || failureSent) return;
+        showing = false;
+        loaded = false;
+        failureSent = true;
+        finishPresentation();
+        listener.renderFailed(new AdException(AdException.INTERNAL_ERROR, message));
+    }
+
     private void finishPresentation() {
+        presentationHandler.removeCallbacks(presentationStartTimeout);
         DaroPrebidFullscreenActivity.release(presentationId);
         presentationId = null;
         Activity activity = presentationActivity;
@@ -457,7 +474,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
     }
 
     private void notifyClosed() {
-        if (destroyed || closedSent) {
+        if (destroyed || closedSent || (failureSent && !startedSent)) {
             return;
         }
         closedSent = true;
@@ -468,6 +485,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
     }
 
     private void resetRenderState(RenderMode renderMode) {
+        finishPresentation();
         this.renderMode = renderMode;
         loaded = false;
         showing = false;

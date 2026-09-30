@@ -48,6 +48,59 @@ public class DaroFullscreenChromeViewTest {
     }
 
     @Test
+    @Config(sdk = {28, 29})
+    public void safeAreaInsets_OverlappingStableAndCutoutUseEachEdgeOnce() {
+        android.view.WindowInsets insets = org.mockito.Mockito.mock(android.view.WindowInsets.class);
+        android.view.DisplayCutout cutout = new android.view.DisplayCutout(
+            new android.graphics.Rect(60, 80, 40, 0), java.util.Collections.emptyList());
+        org.mockito.Mockito.when(insets.getStableInsetTop()).thenReturn(80);
+        org.mockito.Mockito.when(insets.getStableInsetLeft()).thenReturn(40);
+        org.mockito.Mockito.when(insets.getStableInsetRight()).thenReturn(48);
+        org.mockito.Mockito.when(insets.getStableInsetBottom()).thenReturn(48);
+        org.mockito.Mockito.when(insets.getDisplayCutout()).thenReturn(cutout);
+
+        org.prebid.mobile.rendering.utils.helpers.CustomInsets safe = DaroFullscreenChromeView.safeAreaInsets(insets);
+        assertEquals(80, safe.getTop());
+        assertEquals(60, safe.getLeft());
+        assertEquals(48, safe.getRight());
+        assertEquals(48, safe.getBottom());
+        chromeView.setSafeAreaInsets(safe.getTop(), safe.getRight(), safe.getBottom(), safe.getLeft());
+        chromeView.layout(0, 0, dp(844), dp(390));
+        FrameLayout.LayoutParams sound = (FrameLayout.LayoutParams) chromeView.getSoundButton().getLayoutParams();
+        assertEquals(60 + dp(16), sound.leftMargin);
+        assertEquals(80 + dp(16), sound.topMargin);
+    }
+
+    @Test
+    @Config(sdk = 29)
+    public void safeAreaInsets_RealStableInsetsAlreadyIncludeTopCutout() {
+        android.view.WindowInsets insets = new android.view.WindowInsets.Builder()
+            .setStableInsets(android.graphics.Insets.of(0, 80, 0, 48))
+            .setDisplayCutout(new android.view.DisplayCutout(new android.graphics.Rect(0, 80, 0, 0),
+                java.util.Collections.singletonList(new android.graphics.Rect(150, 0, 250, 80))))
+            .build();
+        assertEquals(80, insets.getStableInsetTop());
+        assertEquals(80, insets.getDisplayCutout().getSafeInsetTop());
+        assertEquals(80, DaroFullscreenChromeView.safeAreaInsets(insets).getTop());
+        assertEquals(48, DaroFullscreenChromeView.safeAreaInsets(insets).getBottom());
+    }
+
+    @Test
+    @Config(sdk = 30)
+    public void safeAreaInsets_ModernNavigationAndCutoutUseUnion() {
+        android.view.WindowInsets insets = new android.view.WindowInsets.Builder()
+            .setInsets(android.view.WindowInsets.Type.navigationBars(), android.graphics.Insets.of(0, 0, 48, 24))
+            .setDisplayCutout(new android.view.DisplayCutout(new android.graphics.Rect(60, 80, 40, 0),
+                java.util.Collections.emptyList()))
+            .build();
+        org.prebid.mobile.rendering.utils.helpers.CustomInsets safe = DaroFullscreenChromeView.safeAreaInsets(insets);
+        assertEquals(80, safe.getTop());
+        assertEquals(60, safe.getLeft());
+        assertEquals(48, safe.getRight());
+        assertEquals(24, safe.getBottom());
+    }
+
+    @Test
     public void landscapeResizeUsesWideCtaAndSafeFooterWithoutResettingControlState() {
         chromeView.setSafeAreaInsets(0, dp(20), dp(34), dp(10));
         chromeView.setCallToActionVisible(true);

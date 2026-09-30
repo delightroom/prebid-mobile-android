@@ -145,7 +145,7 @@ public class DaroFullscreenChromeView extends FrameLayout {
     public static CustomInsets safeAreaInsets(WindowInsets insets) {
         int top, right, bottom, left;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            android.graphics.Insets navigation = insets.getInsets(WindowInsets.Type.navigationBars());
+            android.graphics.Insets navigation = insets.getInsets(WindowInsets.Type.navigationBars() | WindowInsets.Type.displayCutout());
             top = navigation.top;
             right = navigation.right;
             bottom = navigation.bottom;
@@ -156,13 +156,13 @@ public class DaroFullscreenChromeView extends FrameLayout {
             bottom = insets.getStableInsetBottom();
             left = insets.getStableInsetLeft();
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             DisplayCutout cutout = insets.getDisplayCutout();
             if (cutout != null) {
-                top += cutout.getSafeInsetTop();
-                right += cutout.getSafeInsetRight();
-                bottom += cutout.getSafeInsetBottom();
-                left += cutout.getSafeInsetLeft();
+                top = Math.max(top, cutout.getSafeInsetTop());
+                right = Math.max(right, cutout.getSafeInsetRight());
+                bottom = Math.max(bottom, cutout.getSafeInsetBottom());
+                left = Math.max(left, cutout.getSafeInsetLeft());
             }
         }
         return new CustomInsets(top, right, bottom, left);

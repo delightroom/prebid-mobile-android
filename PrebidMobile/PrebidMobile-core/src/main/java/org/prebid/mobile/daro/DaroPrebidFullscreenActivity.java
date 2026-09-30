@@ -12,7 +12,6 @@ import androidx.annotation.Nullable;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 /** Owns the fullscreen window so a publisher Activity recreation cannot restart the creative. */
 public final class DaroPrebidFullscreenActivity extends Activity {
@@ -23,8 +22,7 @@ public final class DaroPrebidFullscreenActivity extends Activity {
     @Nullable private DaroPrebidFullscreenRenderer renderer;
     @Nullable private OnBackInvokedCallback backCallback;
 
-    static String launch(Activity host, DaroPrebidFullscreenRenderer renderer) {
-        String id = UUID.randomUUID().toString();
+    static void launch(Activity host, DaroPrebidFullscreenRenderer renderer, String id) {
         sessions.put(id, renderer);
         try {
             host.startActivity(new Intent(host, DaroPrebidFullscreenActivity.class)
@@ -34,7 +32,6 @@ public final class DaroPrebidFullscreenActivity extends Activity {
             sessions.remove(id);
             throw error;
         }
-        return id;
     }
 
     static int hostOrientation(Activity host) {
