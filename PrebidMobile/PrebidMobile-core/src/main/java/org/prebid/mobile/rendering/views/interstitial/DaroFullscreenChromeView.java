@@ -192,7 +192,7 @@ public class DaroFullscreenChromeView extends FrameLayout {
     }
 
     public void setSoundMuted(boolean isMuted) {
-        soundButton.setImageResource(isMuted ? R.drawable.ic_volume_on : R.drawable.ic_volume_off);
+        soundButton.setImageResource(isMuted ? R.drawable.ic_volume_off : R.drawable.ic_volume_on);
         soundButton.setTag(isMuted ? "on" : "off");
     }
 

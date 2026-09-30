@@ -19,6 +19,7 @@ package org.prebid.mobile.rendering.views.interstitial;
 import android.app.Activity;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.TextView;
 import org.junit.Before;
 import org.junit.Test;
@@ -29,6 +30,7 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
 import static org.junit.Assert.assertEquals;
+import static org.robolectric.Shadows.shadowOf;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(qualifiers = "w390dp-h844dp-mdpi")
@@ -204,16 +206,18 @@ public class DaroFullscreenChromeViewTest {
     }
 
     @Test
-    public void setSoundMuted_UsesExistingPrebidSoundTags() {
-        View sound = chromeView.findViewById(R.id.iv_sound_interstitial);
+    public void setSoundMuted_ShowsCurrentStateAndPreservesPrebidActionTags() {
+        ImageView sound = chromeView.findViewById(R.id.iv_sound_interstitial);
 
         chromeView.setSoundMuted(true);
 
         assertEquals("on", sound.getTag());
+        assertEquals(R.drawable.ic_volume_off, shadowOf(sound.getDrawable()).getCreatedFromResId());
 
         chromeView.setSoundMuted(false);
 
         assertEquals("off", sound.getTag());
+        assertEquals(R.drawable.ic_volume_on, shadowOf(sound.getDrawable()).getCreatedFromResId());
     }
 
     @Test
