@@ -22,6 +22,7 @@ import android.content.res.Configuration;
 import android.util.Log;
 import android.view.View;
 import androidx.annotation.NonNull;
+import androidx.annotation.VisibleForTesting;
 import org.prebid.mobile.AdSize;
 import org.prebid.mobile.LogUtil;
 import org.prebid.mobile.api.data.AdFormat;
@@ -38,7 +39,6 @@ import org.prebid.mobile.rendering.models.internal.InternalFriendlyObstruction;
 import org.prebid.mobile.rendering.networking.tracking.TrackingManager;
 import org.prebid.mobile.rendering.session.manager.OmAdSessionManager;
 import org.prebid.mobile.rendering.utils.constants.IntentActions;
-import org.prebid.mobile.rendering.utils.helpers.CustomInsets;
 import org.prebid.mobile.rendering.utils.helpers.InsetsUtils;
 import org.prebid.mobile.rendering.video.OmEventTracker;
 import org.prebid.mobile.rendering.views.AdViewManager;
@@ -68,14 +68,8 @@ public class InterstitialView extends BaseAdView {
 
         DaroFullscreenChromeView daroChromeView = findDaroChromeView();
         if (daroChromeView != null) {
-            CustomInsets navigationInsets = InsetsUtils.getNavigationInsets(getContext());
-            CustomInsets cutoutInsets = InsetsUtils.getCutoutInsets(getContext());
-            daroChromeView.setSafeAreaInsets(
-                navigationInsets.getTop() + cutoutInsets.getTop(),
-                navigationInsets.getRight() + cutoutInsets.getRight(),
-                navigationInsets.getBottom() + cutoutInsets.getBottom(),
-                navigationInsets.getLeft() + cutoutInsets.getLeft()
-            );
+            // Insets arrive after the configuration callback, on the dialog window.
+            daroChromeView.requestApplyInsets();
             return;
         }
 
@@ -212,6 +206,9 @@ public class InterstitialView extends BaseAdView {
     }
 
     public void showHtmlAsInterstitial(@NonNull Activity activity) {
+        if (adViewManager.getAdConfiguration().isDaroFullscreenRenderer()) {
+            interstitialManager.setDaroPresentationActivity(activity);
+        }
         try {
             displayNotificationDeferred = true;
             interstitialManager.configureInterstitialProperties(adViewManager.getAdConfiguration());
@@ -247,11 +244,7 @@ public class InterstitialView extends BaseAdView {
         // so, activity's destroy() calling adview's destry should not crash
         super.destroy();
 
-        if (interstitialVideo != null) {
-            interstitialVideo.hide();
-            interstitialVideo.cancel();
-            interstitialVideo.removeViews();
-        }
+        dismissInterstitialAfterFailure();
     }
 
     public void showAsInterstitialFromRoot() {
@@ -275,21 +268,24 @@ public class InterstitialView extends BaseAdView {
     private void showVideoAsInterstitial(Context context) {
         try {
             final AdUnitConfiguration adConfiguration = adViewManager.getAdConfiguration();
+            if (adConfiguration.isDaroFullscreenRenderer() && context instanceof Activity) {
+                interstitialManager.setDaroPresentationActivity((Activity) context);
+            }
             interstitialManager.configureInterstitialProperties(adConfiguration);
-            interstitialVideo = new InterstitialVideo(
-                context,
-                InterstitialView.this,
-                interstitialManager,
-                adConfiguration
-            );
+            interstitialVideo = createInterstitialVideo(context, adConfiguration);
             interstitialVideo.setHasEndCard(adViewManager.hasNextCreative());
             interstitialVideo.setDialogListener(this::handleDialogEvent);
             interstitialVideo.show();
         } catch (final Exception e) {
             LogUtil.error(TAG, "Video interstitial failed to show:" + Log.getStackTraceString(e));
-
+            dismissInterstitialAfterFailure();
             notifyErrorListeners(new AdException(AdException.INTERNAL_ERROR, e.getMessage()));
         }
+    }
+
+    @VisibleForTesting
+    protected InterstitialVideo createInterstitialVideo(Context context, AdUnitConfiguration configuration) {
+        return new InterstitialVideo(context, this, interstitialManager, configuration);
     }
 
     public void closeInterstitialVideo() {
@@ -305,19 +301,17 @@ public class InterstitialView extends BaseAdView {
         if (interstitialVideo != null) {
             InterstitialVideo failedVideo = interstitialVideo;
             interstitialVideo = null;
-            failedVideo.hide();
-            failedVideo.cancel();
             failedVideo.removeViews();
+            failedVideo.dispose();
         }
         interstitialManager.dismissInterstitialAfterFailure();
     }
 
     public void hideInterstitialVideo() {
         if (interstitialVideo != null) {
-            if (interstitialVideo.isShowing()) {
-                interstitialVideo.hide();
-            }
+            InterstitialVideo completedVideo = interstitialVideo;
             interstitialVideo = null;
+            completedVideo.dispose();
         }
     }
 

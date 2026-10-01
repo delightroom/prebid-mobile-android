@@ -18,6 +18,10 @@ package org.prebid.mobile.rendering.views.interstitial;
 
 import android.content.Context;
 import android.graphics.Color;
+import android.os.Build;
+import android.view.WindowInsets;
+import android.view.DisplayCutout;
+import org.prebid.mobile.rendering.utils.helpers.CustomInsets;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
@@ -46,6 +50,8 @@ public class DaroFullscreenChromeView extends FrameLayout {
     @VisibleForTesting static final int PROGRESS_TOP_OFFSET_DP = 68;
     @VisibleForTesting static final int REWARD_TOAST_TOP_OFFSET_DP = 88;
     @VisibleForTesting static final int CTA_BOTTOM_OFFSET_DP = 114;
+    @VisibleForTesting static final int LANDSCAPE_CTA_MAX_WIDTH_DP = 480;
+    @VisibleForTesting static final int LANDSCAPE_CTA_HORIZONTAL_MARGIN_DP = 24;
     @VisibleForTesting static final int FOOTER_BOTTOM_OFFSET_DP = 34;
     @VisibleForTesting static final int END_CARD_CTA_TOP_OFFSET_DP = 496;
 
@@ -135,6 +141,33 @@ public class DaroFullscreenChromeView extends FrameLayout {
         applyLayout();
     }
 
+    /** Uses the dialog's dispatched insets, which can differ from the Activity window. */
+    public static CustomInsets safeAreaInsets(WindowInsets insets) {
+        int top, right, bottom, left;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            android.graphics.Insets navigation = insets.getInsets(WindowInsets.Type.navigationBars() | WindowInsets.Type.displayCutout());
+            top = navigation.top;
+            right = navigation.right;
+            bottom = navigation.bottom;
+            left = navigation.left;
+        } else {
+            top = insets.getStableInsetTop();
+            right = insets.getStableInsetRight();
+            bottom = insets.getStableInsetBottom();
+            left = insets.getStableInsetLeft();
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            DisplayCutout cutout = insets.getDisplayCutout();
+            if (cutout != null) {
+                top = Math.max(top, cutout.getSafeInsetTop());
+                right = Math.max(right, cutout.getSafeInsetRight());
+                bottom = Math.max(bottom, cutout.getSafeInsetBottom());
+                left = Math.max(left, cutout.getSafeInsetLeft());
+            }
+        }
+        return new CustomInsets(top, right, bottom, left);
+    }
+
     public void setSafeAreaInsets(
         int topPx,
         int bottomPx
@@ -148,15 +181,18 @@ public class DaroFullscreenChromeView extends FrameLayout {
         int bottomPx,
         int leftPx
     ) {
-        safeTopPx = Math.max(0, topPx);
-        safeRightPx = Math.max(0, rightPx);
-        safeBottomPx = Math.max(0, bottomPx);
-        safeLeftPx = Math.max(0, leftPx);
+        int top = Math.max(0, topPx), right = Math.max(0, rightPx);
+        int bottom = Math.max(0, bottomPx), left = Math.max(0, leftPx);
+        if (safeTopPx == top && safeRightPx == right && safeBottomPx == bottom && safeLeftPx == left) return;
+        safeTopPx = top;
+        safeRightPx = right;
+        safeBottomPx = bottom;
+        safeLeftPx = left;
         applyLayout();
     }
 
     public void setSoundMuted(boolean isMuted) {
-        soundButton.setImageResource(isMuted ? R.drawable.ic_volume_on : R.drawable.ic_volume_off);
+        soundButton.setImageResource(isMuted ? R.drawable.ic_volume_off : R.drawable.ic_volume_on);
         soundButton.setTag(isMuted ? "on" : "off");
     }
 
@@ -306,10 +342,12 @@ public class DaroFullscreenChromeView extends FrameLayout {
         int oldh
     ) {
         super.onSizeChanged(w, h, oldw, oldh);
+        applyLayout();
         updateProgressFill();
     }
 
     private void applyLayout() {
+        boolean landscape = getWidth() > getHeight() && getHeight() > 0;
         LayoutParams closeParams = new LayoutParams(dp(CLOSE_BUTTON_SIZE_DP), dp(CLOSE_BUTTON_SIZE_DP));
         closeParams.gravity = Gravity.START | Gravity.TOP;
         closeParams.leftMargin = safeLeftPx + dp(HORIZONTAL_MARGIN_DP);
@@ -337,18 +375,25 @@ public class DaroFullscreenChromeView extends FrameLayout {
         progressTrack.setLayoutParams(progressParams);
 
         LayoutParams ctaParams = new LayoutParams(
-            dp(isEndCardLayout ? END_CARD_CTA_WIDTH_DP : CTA_WIDTH_DP),
+            !isEndCardLayout && landscape
+                ? Math.max(0, Math.min(dp(LANDSCAPE_CTA_MAX_WIDTH_DP),
+                    getWidth() - safeLeftPx - safeRightPx - dp(2 * LANDSCAPE_CTA_HORIZONTAL_MARGIN_DP)))
+                : dp(isEndCardLayout ? END_CARD_CTA_WIDTH_DP : CTA_WIDTH_DP),
             dp(isEndCardLayout ? END_CARD_CTA_HEIGHT_DP : CTA_HEIGHT_DP)
         );
         ctaParams.gravity = (isEndCardLayout ? Gravity.TOP : Gravity.BOTTOM) | Gravity.CENTER_HORIZONTAL;
+        if (!isEndCardLayout && landscape) {
+            ctaParams.gravity = Gravity.BOTTOM | Gravity.LEFT;
+            ctaParams.leftMargin = safeLeftPx + (getWidth() - safeLeftPx - safeRightPx - ctaParams.width) / 2;
+        }
         if (isEndCardLayout) {
             ctaParams.topMargin = dp(END_CARD_CTA_TOP_OFFSET_DP);
         } else {
-            ctaParams.bottomMargin = safeBottomPx + dp(CTA_BOTTOM_OFFSET_DP);
+            ctaParams.bottomMargin = safeBottomPx + dp(landscape ? FOOTER_HEIGHT_DP : CTA_BOTTOM_OFFSET_DP);
         }
         ctaButton.setLayoutParams(ctaParams);
 
-        int footerBottomMargin = Math.max(safeBottomPx, dp(FOOTER_BOTTOM_OFFSET_DP));
+        int footerBottomMargin = landscape ? safeBottomPx : Math.max(safeBottomPx, dp(FOOTER_BOTTOM_OFFSET_DP));
 
         LayoutParams footerParams = new LayoutParams(LayoutParams.MATCH_PARENT, dp(FOOTER_HEIGHT_DP));
         footerParams.gravity = Gravity.BOTTOM;

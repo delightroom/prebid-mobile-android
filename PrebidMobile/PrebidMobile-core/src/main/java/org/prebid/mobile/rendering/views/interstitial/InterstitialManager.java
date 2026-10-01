@@ -36,6 +36,7 @@ import org.prebid.mobile.rendering.views.webview.WebViewBanner;
 import org.prebid.mobile.rendering.views.webview.WebViewBase;
 
 import java.util.Stack;
+import java.lang.ref.WeakReference;
 
 public class InterstitialManager implements InterstitialManagerInterface {
 
@@ -44,6 +45,7 @@ public class InterstitialManager implements InterstitialManagerInterface {
 
     private InterstitialDisplayPropertiesInternal interstitialDisplayProperties = new InterstitialDisplayPropertiesInternal();
     private AdInterstitialDialog interstitialDialog;
+    private WeakReference<Activity> daroPresentationActivity = new WeakReference<>(null);
 
     private InterstitialManagerDisplayDelegate interstitialDisplayDelegate;
     private InterstitialManagerVideoDelegate interstitialVideoDelegate;
@@ -57,7 +59,12 @@ public class InterstitialManager implements InterstitialManagerInterface {
         this.mraidDelegate = mraidDelegate;
     }
 
+    public void setDaroPresentationActivity(Activity activity) {
+        daroPresentationActivity = new WeakReference<>(activity);
+    }
+
     public void configureInterstitialProperties(AdUnitConfiguration adConfiguration) {
+        if (!adConfiguration.isDaroFullscreenRenderer()) daroPresentationActivity.clear();
         InterstitialLayoutConfigurator.configureDisplayProperties(adConfiguration, interstitialDisplayProperties);
     }
 
@@ -101,17 +108,22 @@ public class InterstitialManager implements InterstitialManagerInterface {
     }
 
     public void displayAdViewInInterstitial(Context context, View view, DialogEventListener dialogEventListener) {
-        if (!(context instanceof Activity)) {
-            LogUtil.error(TAG, "displayAdViewInInterstitial(): Can not display interstitial without activity context");
+        Activity presentation = daroPresentationActivity.get();
+        if (isActive(presentation)) context = presentation;
+        boolean daro = interstitialDisplayProperties.config != null
+                && interstitialDisplayProperties.config.isDaroFullscreenRenderer();
+        if (!(context instanceof Activity) || !isActive((Activity) context) || !(view instanceof InterstitialView)) {
+            String message = "Cannot display interstitial without an active Activity and InterstitialView";
+            if (daro) throw new IllegalStateException(message);
+            LogUtil.error(TAG, message);
             return;
         }
+        show();
+        showInterstitialDialog(context, (InterstitialView) view, dialogEventListener);
+    }
 
-        if (view instanceof InterstitialView) {
-            // TODO: 13.08.2020 Remove casts to specific view
-            InterstitialView interstitialView = ((InterstitialView) view);
-            show();
-            showInterstitialDialog(context, interstitialView, dialogEventListener);
-        }
+    private static boolean isActive(Activity activity) {
+        return activity != null && !activity.isFinishing() && !activity.isDestroyed();
     }
 
     public void displayVideoAdViewInInterstitial(Context context, View adView) {
@@ -124,6 +136,8 @@ public class InterstitialManager implements InterstitialManagerInterface {
     }
 
     public void destroy() {
+        dismissInterstitialAfterFailure();
+        daroPresentationActivity.clear();
         if (interstitialDisplayProperties != null) {
             //reset all these for new ads to honour their own creative details
             interstitialDisplayProperties.resetExpandValues();
@@ -222,7 +236,12 @@ public class InterstitialManager implements InterstitialManagerInterface {
         if (dialogEventListener != null) {
             interstitialDialog.setDialogListener(dialogEventListener);
         }
-        interstitialDialog.show();
+        try {
+            interstitialDialog.show();
+        } catch (RuntimeException error) {
+            dismissInterstitialAfterFailure();
+            throw error;
+        }
     }
 
     public void addOldViewToBackStack(WebViewBase adBaseView, String expandUrl, AdBaseDialog interstitialViewController) {

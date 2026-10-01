@@ -72,6 +72,25 @@ public class ExoPlayerViewTest {
     }
 
     @Test
+    public void daroFullscreenPauseResumeKeepsPreparedPlayerPositionAndVolume() throws Exception {
+        org.prebid.mobile.configuration.AdUnitConfiguration config = new org.prebid.mobile.configuration.AdUnitConfiguration();
+        config.setDaroFullscreenRenderer(true);
+        exoPlayerView.setAdUnitConfiguration(config);
+        when(mockExoPlayer.getContentPosition()).thenReturn(7_300L);
+        when(mockExoPlayer.getVolume()).thenReturn(0f);
+        exoPlayerView.pause();
+        exoPlayerView.resume();
+        verify(mockExoPlayer).setPlayWhenReady(false);
+        verify(mockExoPlayer).setPlayWhenReady(true);
+        verify(mockExoPlayer, never()).stop();
+        verify(mockExoPlayer, never()).prepare();
+        verify(mockExoPlayer, never()).release();
+        verify(mockExoPlayer, never()).setVolume(anyFloat());
+        assertEquals(7_300L, exoPlayerView.getCurrentPosition());
+        assertEquals(0f, exoPlayerView.getVolume(), 0f);
+    }
+
+    @Test
     @Config(shadows = RejectSharedPlayerLayouts.class)
     public void createsVideoSurfaceWithoutSharedController() {
         PlayerView playerView = (PlayerView) exoPlayerView.getChildAt(0);

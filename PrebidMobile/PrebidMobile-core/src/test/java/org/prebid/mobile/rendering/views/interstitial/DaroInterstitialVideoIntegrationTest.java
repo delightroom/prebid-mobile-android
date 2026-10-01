@@ -66,6 +66,97 @@ public class DaroInterstitialVideoIntegrationTest {
     }
 
     @Test
+    public void focusPauseResumePreservesElapsedProgressMuteAndNearlyFinishedSkip() throws Exception {
+        when(adUnitConfiguration.isDaroFullscreenRenderer()).thenReturn(true);
+        interstitialVideo.addCloseView();
+        interstitialVideo.addSoundView(true);
+        interstitialVideo.scheduleAllTimers(5_000);
+        android.os.CountDownTimer countdown = (android.os.CountDownTimer)
+            org.prebid.mobile.test.utils.WhiteBox.field(InterstitialVideo.class, "countDownTimer").get(interstitialVideo);
+        org.robolectric.Shadows.shadowOf(countdown).invokeTick(300);
+        interstitialVideo.setRemainingCloseDelayInMs(300);
+        DaroFullscreenChromeView chrome = interstitialVideo.getDaroFullscreenChromeView();
+        float elapsedProgress = chrome.getProgressFraction();
+        assertTrue(elapsedProgress > 0.8f);
+        interstitialVideo.pauseVideo();
+        interstitialVideo.resumeVideo();
+        assertTrue(chrome.getProgressFraction() >= elapsedProgress);
+        assertEquals("on", chrome.getSoundButton().getTag());
+        countdown = (android.os.CountDownTimer)
+            org.prebid.mobile.test.utils.WhiteBox.field(InterstitialVideo.class, "countDownTimer").get(interstitialVideo);
+        org.robolectric.Shadows.shadowOf(countdown).invokeFinish();
+        assertTrue(chrome.getSkipButton().isEnabled());
+        assertEquals(1f, chrome.getProgressFraction(), 0f);
+        interstitialVideo.pauseVideo();
+    }
+
+    @Test
+    @org.robolectric.annotation.LooperMode(org.robolectric.annotation.LooperMode.Mode.PAUSED)
+    public void queuedOnShowAfterDisposeCannotRestartTimersOrReportShown() throws Exception {
+        when(adUnitConfiguration.isDaroFullscreenRenderer()).thenReturn(true);
+        interstitialVideo.show();
+        interstitialVideo.dispose();
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle();
+        try {
+            for (String field : new String[]{"timer", "countDownTimer", "skipCountDownTimer", "showCloseButtonTask"}) {
+                assertEquals(null, org.prebid.mobile.test.utils.WhiteBox.field(InterstitialVideo.class, field).get(interstitialVideo));
+            }
+            assertEquals(null, interstitialVideo.getDaroFullscreenChromeView());
+            org.mockito.Mockito.verify(interstitialManager, org.mockito.Mockito.never()).show();
+            org.mockito.Mockito.verify(interstitialManager, org.mockito.Mockito.never()).interstitialDialogShown(org.mockito.Mockito.any());
+            org.mockito.Mockito.verify(dialogEventListener, org.mockito.Mockito.never()).onEvent(DialogEventListener.EventType.SHOWN);
+            org.mockito.Mockito.verify(dialogEventListener, org.mockito.Mockito.never()).onEvent(DialogEventListener.EventType.CLOSED);
+        } finally {
+            interstitialVideo.dispose();
+        }
+    }
+
+    @Test
+    @Config(sdk = 33)
+    public void modernDialogBackCannotBypassDaroSkipGate() {
+        when(adUnitConfiguration.isDaroFullscreenRenderer()).thenReturn(true);
+        InterstitialVideo video = new InterstitialVideo(activity, adViewContainer, interstitialManager, adUnitConfiguration);
+        video.setDialogListener(dialogEventListener);
+        video.show();
+        video.onBackPressed();
+        assertTrue(video.isShowing());
+        verify(dialogEventListener, org.mockito.Mockito.never()).onEvent(DialogEventListener.EventType.CLOSED);
+        video.dispose();
+    }
+
+    @Test
+    public void disposeAfterAutoCompleteReleasesWindowTimersWithoutClosingCompanion() throws Exception {
+        when(adUnitConfiguration.isDaroFullscreenRenderer()).thenReturn(true);
+        interstitialVideo.show();
+        interstitialVideo.scheduleAllTimers(5_000);
+        View companion = new View(activity);
+        adViewContainer.addView(companion);
+        interstitialVideo.dispose();
+        assertTrue(!interstitialVideo.isShowing());
+        assertSame(adViewContainer, companion.getParent());
+        for (String field : new String[]{"timer", "countDownTimer", "skipCountDownTimer", "showCloseButtonTask"}) {
+            assertEquals(null, org.prebid.mobile.test.utils.WhiteBox.field(InterstitialVideo.class, field).get(interstitialVideo));
+        }
+        verify(dialogEventListener, org.mockito.Mockito.never()).onEvent(DialogEventListener.EventType.CLOSED);
+        verify(interstitialManager, org.mockito.Mockito.never()).interstitialAdClosed();
+    }
+
+    @Test
+    @Config(sdk = 30)
+    public void videoChromeUsesDispatchedNavigationInsetsAfterRotation() throws Exception {
+        when(adUnitConfiguration.isDaroFullscreenRenderer()).thenReturn(true);
+        interstitialVideo.addCloseView();
+        DaroFullscreenChromeView chrome = interstitialVideo.getDaroFullscreenChromeView();
+        chrome.dispatchApplyWindowInsets(new android.view.WindowInsets.Builder()
+            .setInsets(android.view.WindowInsets.Type.navigationBars(), android.graphics.Insets.of(0, 0, 0, 34)).build());
+        assertEquals(34, org.prebid.mobile.test.utils.WhiteBox.field(DaroFullscreenChromeView.class, "safeBottomPx").get(chrome));
+        chrome.dispatchApplyWindowInsets(new android.view.WindowInsets.Builder()
+            .setInsets(android.view.WindowInsets.Type.navigationBars(), android.graphics.Insets.of(0, 0, 48, 0)).build());
+        assertEquals(48, org.prebid.mobile.test.utils.WhiteBox.field(DaroFullscreenChromeView.class, "safeRightPx").get(chrome));
+        assertEquals(0, org.prebid.mobile.test.utils.WhiteBox.field(DaroFullscreenChromeView.class, "safeBottomPx").get(chrome));
+    }
+
+    @Test
     public void addFullscreenControls_AttachesDaroChromeOnceAndBindsControls() {
         interstitialVideo.addCloseView();
         interstitialVideo.addSoundView(true);

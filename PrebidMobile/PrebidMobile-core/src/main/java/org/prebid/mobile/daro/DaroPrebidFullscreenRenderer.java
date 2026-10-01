@@ -27,10 +27,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.UUID;
 
 public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandle {
     @VisibleForTesting static final int DEFAULT_DARO_SKIP_DELAY_SECONDS = 5;
     private static final int DEFAULT_HTML_REWARD_SECONDS = 5;
+    @VisibleForTesting static final long PRESENTATION_START_TIMEOUT_MS = 10_000;
+
+    private final Handler presentationHandler = new Handler(Looper.getMainLooper());
+    private final Runnable presentationStartTimeout = () -> failPresentationStart("Fullscreen Activity did not start");
 
     private final InterstitialView interstitialView;
     private final DaroPrebidRenderListener listener;
@@ -41,6 +46,10 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
     private boolean closedSent;
     private boolean impressionSent;
     private boolean failureSent;
+    private boolean completedSent;
+    private boolean rewardSent;
+    @Nullable private String presentationId;
+    @Nullable private Activity presentationActivity;
     private RenderMode renderMode = RenderMode.VIDEO;
     private int skipDelaySeconds = DEFAULT_DARO_SKIP_DELAY_SECONDS;
     private boolean initialMuted = false;
@@ -80,6 +89,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
                 loaded = false;
                 if (!failedAfterDisplay) {
                     showing = false;
+                    finishPresentation();
                 }
                 DaroPrebidFullscreenRenderer.this.listener.renderFailed(error);
                 if (failedAfterDisplay) {
@@ -87,7 +97,6 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
                         if (destroyed || closedSent) {
                             return;
                         }
-                        DaroPrebidFullscreenRenderer.this.interstitialView.dismissInterstitialAfterFailure();
                         notifyClosed();
                     });
                 }
@@ -104,7 +113,8 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
 
             @Override
             public void onAdCompleted(InterstitialView interstitialView) {
-                if (!destroyed && !failureSent) {
+                if (!destroyed && !failureSent && !completedSent) {
+                    completedSent = true;
                     DaroPrebidFullscreenRenderer.this.listener.videoCompleted();
                 }
             }
@@ -153,9 +163,10 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         if (rewarded) {
             adConfiguration.getRewardManager().setRewardedExt(defaultVideoRewardedExt());
             adConfiguration.getRewardManager().setRewardListener(() -> {
-                if (destroyed || failureSent) {
+                if (destroyed || failureSent || rewardSent) {
                     return;
                 }
+                rewardSent = true;
                 Reward reward = adConfiguration.getRewardManager().getRewardedExt().getReward();
                 String type = reward != null ? reward.getType() : "reward";
                 int amount = reward != null ? reward.getCount() : 1;
@@ -188,9 +199,10 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         if (rewarded) {
             adConfiguration.getRewardManager().setRewardedExt(defaultHtmlRewardedExt());
             adConfiguration.getRewardManager().setRewardListener(() -> {
-                if (destroyed || failureSent) {
+                if (destroyed || failureSent || rewardSent) {
                     return;
                 }
+                rewardSent = true;
                 Reward reward = adConfiguration.getRewardManager().getRewardedExt().getReward();
                 String type = reward != null ? reward.getType() : "reward";
                 int amount = reward != null ? reward.getCount() : 1;
@@ -325,7 +337,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         if (destroyed) {
             return;
         }
-        if (showing) {
+        if (showing || failureSent || closedSent) {
             return;
         }
         if (!loaded) {
@@ -353,19 +365,55 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         }
         showing = true;
         loaded = false;
-        if (renderMode == RenderMode.HTML) {
-            if (activity == null) {
-                interstitialView.showHtmlAsInterstitial();
-            } else {
-                interstitialView.showHtmlAsInterstitial(activity);
-            }
-        } else {
-            if (activity == null) {
-                interstitialView.showVideoAsInterstitial();
-            } else {
-                interstitialView.showVideoAsInterstitial(activity);
-            }
+        Activity host = activity != null ? activity : activityFromContext(interstitialView.getContext());
+        // Assign before launch: a synchronous Activity creation may present or fail immediately.
+        presentationId = UUID.randomUUID().toString();
+        presentationHandler.postDelayed(presentationStartTimeout, PRESENTATION_START_TIMEOUT_MS);
+        try {
+            DaroPrebidFullscreenActivity.launch(host, this, presentationId);
+        } catch (RuntimeException error) {
+            failPresentationStart(error.getMessage());
         }
+    }
+
+    void present(@NonNull Activity activity) {
+        if (destroyed || closedSent || failureSent || presentationActivity != null) {
+            activity.finish();
+            return;
+        }
+        presentationHandler.removeCallbacks(presentationStartTimeout);
+        presentationActivity = activity;
+        if (renderMode == RenderMode.HTML) {
+            interstitialView.showHtmlAsInterstitial(activity);
+        } else {
+            interstitialView.showVideoAsInterstitial(activity);
+        }
+    }
+
+    void presentationDestroyed(@NonNull Activity activity) {
+        if (presentationActivity != activity) return;
+        presentationActivity = null;
+        if (!destroyed && !closedSent) {
+            notifyClosed();
+        }
+    }
+
+    private void failPresentationStart(@Nullable String message) {
+        if (destroyed || closedSent || failureSent) return;
+        showing = false;
+        loaded = false;
+        failureSent = true;
+        finishPresentation();
+        listener.renderFailed(new AdException(AdException.INTERNAL_ERROR, message));
+    }
+
+    private void finishPresentation() {
+        presentationHandler.removeCallbacks(presentationStartTimeout);
+        DaroPrebidFullscreenActivity.release(presentationId);
+        presentationId = null;
+        Activity activity = presentationActivity;
+        presentationActivity = null;
+        if (activity != null) activity.finish();
     }
 
     @NonNull
@@ -405,6 +453,7 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         }
         destroyed = true;
         interstitialView.destroy();
+        finishPresentation();
         listener.destroyed();
     }
 
@@ -425,15 +474,18 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
     }
 
     private void notifyClosed() {
-        if (destroyed || closedSent) {
+        if (destroyed || closedSent || (failureSent && !startedSent)) {
             return;
         }
         closedSent = true;
         showing = false;
+        interstitialView.dismissInterstitialAfterFailure();
+        finishPresentation();
         listener.closed();
     }
 
     private void resetRenderState(RenderMode renderMode) {
+        finishPresentation();
         this.renderMode = renderMode;
         loaded = false;
         showing = false;
@@ -441,6 +493,8 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         closedSent = false;
         impressionSent = false;
         failureSent = false;
+        completedSent = false;
+        rewardSent = false;
     }
 
     private enum RenderMode {

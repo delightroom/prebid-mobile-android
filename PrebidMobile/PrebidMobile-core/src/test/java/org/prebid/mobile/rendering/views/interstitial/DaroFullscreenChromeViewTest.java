@@ -19,6 +19,7 @@ package org.prebid.mobile.rendering.views.interstitial;
 import android.app.Activity;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.TextView;
 import org.junit.Before;
 import org.junit.Test;
@@ -29,6 +30,7 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
 import static org.junit.Assert.assertEquals;
+import static org.robolectric.Shadows.shadowOf;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(qualifiers = "w390dp-h844dp-mdpi")
@@ -43,6 +45,88 @@ public class DaroFullscreenChromeViewTest {
         chromeView = new DaroFullscreenChromeView(activity);
         activity.setContentView(chromeView);
         chromeView.layout(0, 0, dp(390), dp(844));
+    }
+
+    @Test
+    @Config(sdk = {28, 29})
+    public void safeAreaInsets_OverlappingStableAndCutoutUseEachEdgeOnce() {
+        android.view.WindowInsets insets = org.mockito.Mockito.mock(android.view.WindowInsets.class);
+        android.view.DisplayCutout cutout = new android.view.DisplayCutout(
+            new android.graphics.Rect(60, 80, 40, 0), java.util.Collections.emptyList());
+        org.mockito.Mockito.when(insets.getStableInsetTop()).thenReturn(80);
+        org.mockito.Mockito.when(insets.getStableInsetLeft()).thenReturn(40);
+        org.mockito.Mockito.when(insets.getStableInsetRight()).thenReturn(48);
+        org.mockito.Mockito.when(insets.getStableInsetBottom()).thenReturn(48);
+        org.mockito.Mockito.when(insets.getDisplayCutout()).thenReturn(cutout);
+
+        org.prebid.mobile.rendering.utils.helpers.CustomInsets safe = DaroFullscreenChromeView.safeAreaInsets(insets);
+        assertEquals(80, safe.getTop());
+        assertEquals(60, safe.getLeft());
+        assertEquals(48, safe.getRight());
+        assertEquals(48, safe.getBottom());
+        chromeView.setSafeAreaInsets(safe.getTop(), safe.getRight(), safe.getBottom(), safe.getLeft());
+        chromeView.layout(0, 0, dp(844), dp(390));
+        FrameLayout.LayoutParams sound = (FrameLayout.LayoutParams) chromeView.getSoundButton().getLayoutParams();
+        assertEquals(60 + dp(16), sound.leftMargin);
+        assertEquals(80 + dp(16), sound.topMargin);
+    }
+
+    @Test
+    @Config(sdk = 29)
+    public void safeAreaInsets_RealStableInsetsAlreadyIncludeTopCutout() {
+        android.view.WindowInsets insets = new android.view.WindowInsets.Builder()
+            .setStableInsets(android.graphics.Insets.of(0, 80, 0, 48))
+            .setDisplayCutout(new android.view.DisplayCutout(new android.graphics.Rect(0, 80, 0, 0),
+                java.util.Collections.singletonList(new android.graphics.Rect(150, 0, 250, 80))))
+            .build();
+        assertEquals(80, insets.getStableInsetTop());
+        assertEquals(80, insets.getDisplayCutout().getSafeInsetTop());
+        assertEquals(80, DaroFullscreenChromeView.safeAreaInsets(insets).getTop());
+        assertEquals(48, DaroFullscreenChromeView.safeAreaInsets(insets).getBottom());
+    }
+
+    @Test
+    @Config(sdk = 30)
+    public void safeAreaInsets_ModernNavigationAndCutoutUseUnion() {
+        android.view.WindowInsets insets = new android.view.WindowInsets.Builder()
+            .setInsets(android.view.WindowInsets.Type.navigationBars(), android.graphics.Insets.of(0, 0, 48, 24))
+            .setDisplayCutout(new android.view.DisplayCutout(new android.graphics.Rect(60, 80, 40, 0),
+                java.util.Collections.emptyList()))
+            .build();
+        org.prebid.mobile.rendering.utils.helpers.CustomInsets safe = DaroFullscreenChromeView.safeAreaInsets(insets);
+        assertEquals(80, safe.getTop());
+        assertEquals(60, safe.getLeft());
+        assertEquals(48, safe.getRight());
+        assertEquals(24, safe.getBottom());
+    }
+
+    @Test
+    public void landscapeResizeUsesWideCtaAndSafeFooterWithoutResettingControlState() {
+        chromeView.setSafeAreaInsets(0, dp(20), dp(34), dp(10));
+        chromeView.setCallToActionVisible(true);
+        chromeView.setSoundMuted(true);
+        chromeView.showSkipCountdown(3);
+        chromeView.setProgressFraction(0.6f);
+        chromeView.showRewardUnlocked(true);
+        chromeView.layout(0, 0, dp(844), dp(390));
+        FrameLayout.LayoutParams cta = (FrameLayout.LayoutParams) chromeView.getCallToActionButton().getLayoutParams();
+        assertEquals(dp(480), cta.width);
+        assertEquals(dp(177), cta.leftMargin);
+        assertEquals(dp(66), cta.bottomMargin);
+        FrameLayout.LayoutParams footer = (FrameLayout.LayoutParams) chromeView.getFooterBadge().getLayoutParams();
+        assertEquals(dp(34), footer.bottomMargin);
+        assertEquals("on", chromeView.getSoundButton().getTag());
+        assertEquals("3s", chromeView.getSkipSecondaryText().getText().toString());
+        assertEquals(0.6f, chromeView.getProgressFraction(), 0f);
+        assertEquals(View.VISIBLE, chromeView.getRewardToast().getVisibility());
+        chromeView.layout(0, 0, dp(480), dp(390));
+        cta = (FrameLayout.LayoutParams) chromeView.getCallToActionButton().getLayoutParams();
+        assertEquals(dp(402), cta.width);
+        assertEquals(dp(34), cta.leftMargin);
+        chromeView.layout(0, 0, dp(390), dp(844));
+        cta = (FrameLayout.LayoutParams) chromeView.getCallToActionButton().getLayoutParams();
+        assertEquals(dp(151), cta.width);
+        assertEquals(dp(148), cta.bottomMargin);
     }
 
     @Test
@@ -175,16 +259,18 @@ public class DaroFullscreenChromeViewTest {
     }
 
     @Test
-    public void setSoundMuted_UsesExistingPrebidSoundTags() {
-        View sound = chromeView.findViewById(R.id.iv_sound_interstitial);
+    public void setSoundMuted_ShowsCurrentStateAndPreservesPrebidActionTags() {
+        ImageView sound = chromeView.findViewById(R.id.iv_sound_interstitial);
 
         chromeView.setSoundMuted(true);
 
         assertEquals("on", sound.getTag());
+        assertEquals(R.drawable.ic_volume_off, shadowOf(sound.getDrawable()).getCreatedFromResId());
 
         chromeView.setSoundMuted(false);
 
         assertEquals("off", sound.getTag());
+        assertEquals(R.drawable.ic_volume_on, shadowOf(sound.getDrawable()).getCreatedFromResId());
     }
 
     @Test

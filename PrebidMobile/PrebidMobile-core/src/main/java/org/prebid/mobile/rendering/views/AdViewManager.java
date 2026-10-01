@@ -553,11 +553,21 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
 
         HTMLCreative endCardCreative = (HTMLCreative) transaction.getCreativeFactories().get(1).getCreative();
         interstitialManager.setInterstitialDisplayDelegate(endCardCreative);
-        interstitialManager.displayAdViewInInterstitial(contextReference.get(), adView, eventType -> {
-            if (eventType == DialogEventListener.EventType.SHOWN && onEndCardShown != null) {
-                onEndCardShown.run();
+        try {
+            interstitialManager.displayAdViewInInterstitial(contextReference.get(), adView, eventType -> {
+                if (eventType == DialogEventListener.EventType.SHOWN && onEndCardShown != null) {
+                    onEndCardShown.run();
+                }
+            });
+        } catch (RuntimeException error) {
+            LogUtil.error(TAG, "Daro companion failed to show: " + Log.getStackTraceString(error));
+            if (adView instanceof org.prebid.mobile.api.rendering.InterstitialView) {
+                ((org.prebid.mobile.api.rendering.InterstitialView) adView).dismissInterstitialAfterFailure();
+            } else {
+                interstitialManager.dismissInterstitialAfterFailure();
             }
-        });
+            interstitialManager.interstitialAdClosed();
+        }
     }
 
     private void handleCreativeDisplay() {

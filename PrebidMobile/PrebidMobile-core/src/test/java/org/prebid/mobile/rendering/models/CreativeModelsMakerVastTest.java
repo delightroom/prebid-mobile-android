@@ -103,7 +103,7 @@ public class CreativeModelsMakerVastTest {
     }
 
     @Test
-    public void buildDaroStaticEndCardHtml_UsesDaroEndCardLayoutAndCtaClickTarget() {
+    public void buildDaroStaticEndCardHtml_UsesDaroEndCardLayoutAndCtaClickTarget() throws java.io.IOException {
         String html = CreativeModelsMakerVast.buildDaroStaticEndCardHtml(
             "https://example.com/install?x=1&y=2",
             "https://cdn.example.com/icon.png",
@@ -111,6 +111,9 @@ public class CreativeModelsMakerVastTest {
             "Focus & Productivity"
         );
 
+        java.nio.file.Path artifact = java.nio.file.Path.of("build/reports/daro-endcard/layout.html");
+        java.nio.file.Files.createDirectories(artifact.getParent());
+        java.nio.file.Files.write(artifact, html.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         MatcherAssert.assertThat(html, containsString("background:#27272a"));
         MatcherAssert.assertThat(html, containsString("width:96px;height:96px"));
         MatcherAssert.assertThat(html, containsString("height:60px"));
@@ -123,6 +126,17 @@ public class CreativeModelsMakerVastTest {
         MatcherAssert.assertThat(html, containsString("Skyline &lt;Pro&gt;"));
         MatcherAssert.assertThat(html, containsString("Focus &amp; Productivity"));
         assertFalse(html.contains("<a href=\"https://example.com/install?x=1&amp;y=2\"><img"));
+    }
+
+    @Test
+    public void staticEndCardSeparatesResponsiveCopyFromBottomLandscapeCta() {
+        String html = CreativeModelsMakerVast.buildDaroStaticEndCardHtml("https://example.com", "icon.png", "Title", "Subtitle");
+        MatcherAssert.assertThat(html, containsString("@media (orientation:landscape)"));
+        MatcherAssert.assertThat(html, containsString("max-width:480px;height:52px"));
+        MatcherAssert.assertThat(html, containsString("max-height:100%;overflow:auto"));
+        MatcherAssert.assertThat(html, containsString("bottom:calc(var(--daro-safe-bottom,env(safe-area-inset-bottom,0px)) + 32px)"));
+        MatcherAssert.assertThat(html, containsString("<div class=\"daro-copy\">"));
+        assertTrue(html.indexOf("</p></div><a class=\"daro-cta\"") > 0);
     }
 
     @Test

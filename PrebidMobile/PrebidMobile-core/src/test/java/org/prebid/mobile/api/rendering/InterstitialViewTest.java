@@ -126,14 +126,14 @@ public class InterstitialViewTest {
     }
 
     @Test
-    public void hideInterstitialVideo_HidesShowingVideoWithoutClose() throws IllegalAccessException {
+    public void hideInterstitialVideo_DisposesVideoWindowWithoutClose() throws IllegalAccessException {
         InterstitialVideo interstitialVideo = mock(InterstitialVideo.class);
         when(interstitialVideo.isShowing()).thenReturn(true);
         WhiteBox.field(InterstitialView.class, "interstitialVideo").set(spyBidInterstitialView, interstitialVideo);
 
         spyBidInterstitialView.hideInterstitialVideo();
 
-        verify(interstitialVideo).hide();
+        verify(interstitialVideo).dispose();
         verify(interstitialVideo, never()).close();
         assertEquals(null, WhiteBox.field(InterstitialView.class, "interstitialVideo").get(spyBidInterstitialView));
     }
@@ -145,16 +145,55 @@ public class InterstitialViewTest {
         doAnswer(invocation -> {
             assertEquals(null, WhiteBox.field(InterstitialView.class, "interstitialVideo").get(spyBidInterstitialView));
             return null;
-        }).when(interstitialVideo).cancel();
+        }).when(interstitialVideo).dispose();
 
         spyBidInterstitialView.dismissInterstitialAfterFailure();
 
-        verify(interstitialVideo).hide();
-        verify(interstitialVideo).cancel();
+        verify(interstitialVideo).dispose();
         verify(interstitialVideo).removeViews();
         verify(interstitialVideo, never()).close();
         verify(mockInterstitialManager).dismissInterstitialAfterFailure();
         assertEquals(null, WhiteBox.field(InterstitialView.class, "interstitialVideo").get(spyBidInterstitialView));
+    }
+
+    @Test
+    public void dismissFailureRemovesActualCreativeBeforeDisposingContainer() throws Exception {
+        AdUnitConfiguration config = new AdUnitConfiguration();
+        config.setDaroFullscreenRenderer(true);
+        when(mockInterstitialManager.getInterstitialDisplayProperties()).thenReturn(new org.prebid.mobile.rendering.models.InterstitialDisplayPropertiesInternal());
+        InterstitialVideo video = new InterstitialVideo(context, spyBidInterstitialView, mockInterstitialManager, config);
+        spyBidInterstitialView.addView(new View(context));
+        WhiteBox.field(InterstitialView.class, "interstitialVideo").set(spyBidInterstitialView, video);
+        spyBidInterstitialView.dismissInterstitialAfterFailure();
+        assertEquals(0, spyBidInterstitialView.getChildCount());
+        assertEquals(null, WhiteBox.field(InterstitialView.class, "interstitialVideo").get(spyBidInterstitialView));
+        assertEquals(null, WhiteBox.field(InterstitialVideo.class, "adViewContainer").get(video));
+        assertEquals(null, WhiteBox.field(InterstitialVideo.class, "timer").get(video));
+        org.junit.Assert.assertFalse(video.isShowing());
+    }
+
+    @Test
+    public void failedVideoShowDisposesActualDialogTimerAndContentAndReportsOnlyFailure() throws Exception {
+        AdUnitConfiguration config = new AdUnitConfiguration();
+        config.setDaroFullscreenRenderer(true);
+        when(mockAdViewManager.getAdConfiguration()).thenReturn(config);
+        when(mockInterstitialManager.getInterstitialDisplayProperties()).thenReturn(new org.prebid.mobile.rendering.models.InterstitialDisplayPropertiesInternal());
+        InterstitialViewListener listener = mock(InterstitialViewListener.class);
+        spyBidInterstitialView.setInterstitialViewListener(listener);
+        InterstitialVideo video = spy(new InterstitialVideo(context, spyBidInterstitialView, mockInterstitialManager, config));
+        spyBidInterstitialView.addView(new View(context));
+        doReturn(video).when(spyBidInterstitialView).createInterstitialVideo(any(), eq(config));
+        doThrow(new android.view.WindowManager.BadTokenException("dead Activity window")).when(video).show();
+        spyBidInterstitialView.showVideoAsInterstitial((Activity) context);
+        assertEquals(0, spyBidInterstitialView.getChildCount());
+        assertEquals(null, WhiteBox.field(InterstitialView.class, "interstitialVideo").get(spyBidInterstitialView));
+        assertEquals(null, WhiteBox.field(InterstitialVideo.class, "adViewContainer").get(video));
+        assertEquals(null, WhiteBox.field(InterstitialVideo.class, "timer").get(video));
+        org.junit.Assert.assertFalse(video.isShowing());
+        verify(listener).onAdFailed(eq(spyBidInterstitialView), any(AdException.class));
+        verify(listener, never()).onAdDisplayed(any());
+        verify(listener, never()).onAdClosed(any());
+        verify(mockInterstitialManager, never()).interstitialAdClosed();
     }
 
     @Test

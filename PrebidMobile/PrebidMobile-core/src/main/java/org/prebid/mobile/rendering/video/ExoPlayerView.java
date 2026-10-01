@@ -91,7 +91,7 @@ public class ExoPlayerView extends FrameLayout implements VideoPlayerView {
             }
             switch (playbackState) {
                 case Player.STATE_READY:
-                    if (preparingStillFrame || (stillFrameMode && !playbackRequested)) {
+                    if (preparingStillFrame || ((stillFrameMode || isDaroFullscreenVideo()) && !playbackRequested)) {
                         player.setPlayWhenReady(false);
                         return;
                     }
@@ -206,7 +206,12 @@ public class ExoPlayerView extends FrameLayout implements VideoPlayerView {
             videoCreativeViewListener.onEvent(VideoAdEvent.Event.AD_RESUME);
             return;
         }
-        preparePlayer(false);
+        if (isDaroFullscreenVideo()) {
+            playbackRequested = true;
+            if (player != null) player.setPlayWhenReady(true);
+        } else {
+            preparePlayer(false);
+        }
         videoCreativeViewListener.onEvent(VideoAdEvent.Event.AD_RESUME);
     }
 
@@ -217,7 +222,7 @@ public class ExoPlayerView extends FrameLayout implements VideoPlayerView {
             return;
         }
         if (player != null) {
-            if (stillFrameMode) {
+            if (stillFrameMode || isDaroFullscreenVideo()) {
                 playbackRequested = false;
                 player.setPlayWhenReady(false);
             } else {
@@ -235,6 +240,10 @@ public class ExoPlayerView extends FrameLayout implements VideoPlayerView {
         }
         destroy();
         videoCreativeViewListener.onDisplayCompleted();
+    }
+
+    private boolean isDaroFullscreenVideo() {
+        return config != null && config.isDaroFullscreenRenderer();
     }
 
     private boolean isBannerVideo() {

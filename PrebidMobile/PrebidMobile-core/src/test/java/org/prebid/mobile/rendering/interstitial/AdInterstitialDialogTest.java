@@ -82,6 +82,47 @@ public class AdInterstitialDialogTest {
     }
 
     @Test
+    public void cleanupCancelsRewardAndDelayedCloseWithoutGrantingOrClosingLater() throws Exception {
+        AdUnitConfiguration config = new AdUnitConfiguration();
+        Runnable reward = mock(Runnable.class);
+        config.getRewardManager().setRewardListener(reward);
+        InterstitialDisplayPropertiesInternal properties = new InterstitialDisplayPropertiesInternal();
+        properties.config = config;
+        when(mockInterstitialManager.getInterstitialDisplayProperties()).thenReturn(properties);
+        adInterstitialDialog.scheduleRewardListener(5_000, 1_000, true);
+        adInterstitialDialog.cleanup();
+        assertEquals(null, WhiteBox.field(AdInterstitialDialog.class, "timer").get(adInterstitialDialog));
+        adInterstitialDialog.scheduleCloseButtonDisplaying(5_000, true);
+        adInterstitialDialog.cleanup();
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idleFor(10, java.util.concurrent.TimeUnit.SECONDS);
+        verify(reward, never()).run();
+        verify(mockInterstitialManager, never()).interstitialClosed(any());
+    }
+
+    @Test
+    @Config(sdk = 30)
+    public void companionChromeAndCssUseDispatchedWindowInsetsDespiteThemedContext() throws Exception {
+        InterstitialDisplayPropertiesInternal properties = new InterstitialDisplayPropertiesInternal();
+        properties.config = new AdUnitConfiguration();
+        properties.config.setHasEndCard(true);
+        properties.config.setDaroFullscreenRenderer(true);
+        when(mockInterstitialManager.getInterstitialDisplayProperties()).thenReturn(properties);
+        FrameLayout container = new FrameLayout(mockContext);
+        AdInterstitialDialog dialog = new AdInterstitialDialog(mockContext, mockWebViewBase, container, mockInterstitialManager);
+        dialog.addCloseView();
+        DaroFullscreenChromeView chrome = (DaroFullscreenChromeView) WhiteBox.field(AdInterstitialDialog.class, "daroEndCardChromeView").get(dialog);
+        chrome.dispatchApplyWindowInsets(new android.view.WindowInsets.Builder()
+            .setInsets(android.view.WindowInsets.Type.navigationBars(), android.graphics.Insets.of(0, 0, 0, 34)).build());
+        assertEquals(34, WhiteBox.field(DaroFullscreenChromeView.class, "safeBottomPx").get(chrome));
+        chrome.dispatchApplyWindowInsets(new android.view.WindowInsets.Builder()
+            .setInsets(android.view.WindowInsets.Type.navigationBars(), android.graphics.Insets.of(0, 0, 48, 0)).build());
+        assertEquals(48, WhiteBox.field(DaroFullscreenChromeView.class, "safeRightPx").get(chrome));
+        assertEquals(0, WhiteBox.field(DaroFullscreenChromeView.class, "safeBottomPx").get(chrome));
+        verify(mockWebViewBase).evaluateJavascript(contains("--daro-safe-right','48.0px"), isNull());
+        dialog.cleanup();
+    }
+
+    @Test
     public void handleCloseClick() throws IllegalAccessException {
         InterstitialManager interstitialManager = mock(InterstitialManager.class);
         Field interstitialManagerField = WhiteBox.field(AdInterstitialDialog.class, "interstitialManager");
