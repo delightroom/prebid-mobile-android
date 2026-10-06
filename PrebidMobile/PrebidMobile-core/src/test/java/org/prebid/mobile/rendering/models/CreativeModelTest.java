@@ -34,6 +34,21 @@ import static org.mockito.Mockito.*;
 public class CreativeModelTest {
 
     @Test
+    public void endCardClickUsesDisplaySessionAndPreservesClickTracking() {
+        TrackingManager tracking = mock(TrackingManager.class);
+        OmEventTracker om = mock(OmEventTracker.class);
+        CreativeModel model = new CreativeModel(tracking, om, mock(AdUnitConfiguration.class));
+        model.setHasEndCard(true);
+        ArrayList<String> urls = new ArrayList<>();
+        urls.add("https://example.test/companion-click");
+        model.registerTrackingEvent(TrackingEvent.Events.CLICK, urls);
+        model.trackDisplayAdEvent(TrackingEvent.Events.CLICK);
+        verify(om).trackOmHtmlAdEvent(TrackingEvent.Events.CLICK);
+        verify(om, never()).trackOmVideoAdEvent(any());
+        verify(tracking).fireEventTrackingURLs(urls);
+    }
+
+    @Test
     public void testRegisterTrackingEvent() throws Exception {
         TrackingManager trackingManager = TrackingManager.getInstance();
         OmEventTracker mockOmEventTracker = mock(OmEventTracker.class);

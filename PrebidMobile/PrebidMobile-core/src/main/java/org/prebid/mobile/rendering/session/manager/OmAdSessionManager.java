@@ -418,6 +418,7 @@ public class OmAdSessionManager {
         }
         adSession.finish();
         adSession = null;
+        adEvents = null;
         mediaEvents = null;
         omidSessionSkipped = false;
     }

@@ -614,7 +614,8 @@ public class AdResponseParserVast extends AdResponseParserBase {
             for (int i = 0; i < companionAds.size(); i++) {
                 try {
                     Companion currentCompanion = companionAds.get(i);
-                    if (compareCompanions(currentCompanion, bestCompanion) == 1) {
+                    if (getCompanionResourceFormat(currentCompanion) != null
+                        && compareCompanions(currentCompanion, bestCompanion) == 1) {
                         bestCompanion = currentCompanion;
                     }
                 }
@@ -699,13 +700,16 @@ public class AdResponseParserVast extends AdResponseParserBase {
             return null;
         }
 
-        if (companion.getHtmlResource() != null) {
+        if (companion.getHtmlResource() != null
+            && Utils.isNotBlank(companion.getHtmlResource().getValue())) {
             return RESOURCE_FORMAT_HTML;
         }
-        else if (companion.getIFrameResource() != null) {
+        else if (companion.getIFrameResource() != null
+            && Utils.isNotBlank(companion.getIFrameResource().getValue())) {
             return RESOURCE_FORMAT_IFRAME;
         }
-        else if (companion.getStaticResource() != null) {
+        else if (companion.getStaticResource() != null
+            && Utils.isNotBlank(companion.getStaticResource().getValue())) {
             return RESOURCE_FORMAT_STATIC;
         }
 

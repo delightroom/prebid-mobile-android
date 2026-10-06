@@ -544,6 +544,7 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
             return;
         }
 
+        transaction.finishCurrentOmAdSession();
         AbstractCreative currentVideoCreative = transactionManager.getCurrentCreative();
         if (currentVideoCreative != null) {
             currentVideoCreative.destroy();
@@ -552,6 +553,8 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
         transactionManager.incrementCreativesCounter();
 
         HTMLCreative endCardCreative = (HTMLCreative) transaction.getCreativeFactories().get(1).getCreative();
+        endCardCreative.createOmAdSession();
+        endCardCreative.trackAdLoaded();
         interstitialManager.setInterstitialDisplayDelegate(endCardCreative);
         try {
             interstitialManager.displayAdViewInInterstitial(contextReference.get(), adView, eventType -> {

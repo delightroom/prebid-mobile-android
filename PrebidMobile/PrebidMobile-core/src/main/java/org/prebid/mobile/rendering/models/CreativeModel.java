@@ -24,7 +24,6 @@ import org.prebid.mobile.daro.DaroPrebidTrackingObserver;
 import org.prebid.mobile.rendering.networking.tracking.TrackingManager;
 import org.prebid.mobile.rendering.session.manager.OmAdSessionManager;
 import org.prebid.mobile.rendering.video.OmEventTracker;
-import org.prebid.mobile.rendering.video.VideoAdEvent;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -164,13 +163,7 @@ public class CreativeModel {
     }
 
     private void handleOmTracking(TrackingEvent.Events event) {
-        //checking if this click is made on the end card so that we could track it in the scope
-        //of OM video session
-        if (hasEndCard && event == TrackingEvent.Events.CLICK) {
-            omEventTracker.trackOmVideoAdEvent(VideoAdEvent.Event.AD_CLICK);
-        } else {
-            omEventTracker.trackOmHtmlAdEvent(event);
-        }
+        omEventTracker.trackOmHtmlAdEvent(event);
     }
 
     public AdUnitConfiguration getAdConfiguration() {

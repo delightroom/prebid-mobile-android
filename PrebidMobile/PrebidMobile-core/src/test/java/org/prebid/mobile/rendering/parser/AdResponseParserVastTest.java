@@ -852,13 +852,19 @@ public class AdResponseParserVastTest {
         result = AdResponseParserVast.getCompanionAd(mockInLine);
         assertNull(result);
 
-        // One companion
+        // A companion without a usable resource must not create an empty end card
         mockInLine = setupInLine();
         companions = mockInLine.getCreatives().get(0).getCompanionAds();
         mockCompanionA = mock(Companion.class);
         companions.add(mockCompanionA);
         result = AdResponseParserVast.getCompanionAd(mockInLine);
-        assertEquals(mockCompanionA, result);
+        assertNull(result);
+        StaticResource emptyResource = mock(StaticResource.class);
+        when(mockCompanionA.getStaticResource()).thenReturn(emptyResource);
+        when(emptyResource.getValue()).thenReturn("  ");
+        assertNull(AdResponseParserVast.getCompanionAd(mockInLine));
+        when(emptyResource.getValue()).thenReturn("https://example.test/end-card.png");
+        assertEquals(mockCompanionA, AdResponseParserVast.getCompanionAd(mockInLine));
 
         // Companion B format better than Companion A format
         mockInLine = setupInLine();
@@ -867,11 +873,13 @@ public class AdResponseParserVastTest {
         when(mockCompanionA.getWidth()).thenReturn("2");
         when(mockCompanionA.getHeight()).thenReturn("2");
         when(mockCompanionA.getStaticResource()).thenReturn(mock(StaticResource.class));
+        when(mockCompanionA.getStaticResource().getValue()).thenReturn("resource");
         companions.add(mockCompanionA);
         mockCompanionB = mock(Companion.class);
         when(mockCompanionB.getWidth()).thenReturn("1");
         when(mockCompanionB.getHeight()).thenReturn("1");
         when(mockCompanionB.getHtmlResource()).thenReturn(mock(HTMLResource.class));
+        when(mockCompanionB.getHtmlResource().getValue()).thenReturn("resource");
         companions.add(mockCompanionB);
         result = AdResponseParserVast.getCompanionAd(mockInLine);
         assertEquals(mockCompanionB, result);
@@ -883,11 +891,13 @@ public class AdResponseParserVastTest {
         when(mockCompanionA.getWidth()).thenReturn("1");
         when(mockCompanionA.getHeight()).thenReturn("1");
         when(mockCompanionA.getStaticResource()).thenReturn(mock(StaticResource.class));
+        when(mockCompanionA.getStaticResource().getValue()).thenReturn("resource");
         companions.add(mockCompanionA);
         mockCompanionB = mock(Companion.class);
         when(mockCompanionB.getWidth()).thenReturn("2");
         when(mockCompanionB.getHeight()).thenReturn("2");
         when(mockCompanionB.getStaticResource()).thenReturn(mock(StaticResource.class));
+        when(mockCompanionB.getStaticResource().getValue()).thenReturn("resource");
         companions.add(mockCompanionB);
         result = AdResponseParserVast.getCompanionAd(mockInLine);
         assertEquals(mockCompanionB, result);
