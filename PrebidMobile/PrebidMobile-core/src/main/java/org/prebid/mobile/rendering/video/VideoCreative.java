@@ -474,6 +474,14 @@ public class VideoCreative extends VideoCreativeProtocol
         }
     }
 
+    static DaroRenderException downloadFailure(Exception error) {
+        return new DaroRenderException(error instanceof VideoDownloadException ? ((VideoDownloadException) error).reason
+                : error instanceof java.net.SocketTimeoutException
+                || error.getCause() instanceof java.net.SocketTimeoutException ? "network_timeout" : "unknown",
+                "media_download", error.getMessage(), error.getCause() != null ? error.getCause() : error, null,
+                error instanceof VideoDownloadException ? ((VideoDownloadException) error).httpStatus : null, null);
+    }
+
     private static class VideoCreativeVideoPreloadListener implements FileDownloadListener {
 
         private WeakReference<VideoCreative> weakVideoCreative;
@@ -509,11 +517,7 @@ public class VideoCreative extends VideoCreativeProtocol
 
             if (!videoCreative.beginTerminalEvent()) return;
             videoCreative.model.trackVastError(400);
-            videoCreative.getResolutionListener().creativeFailed(new DaroRenderException(error instanceof VideoDownloadException ? ((VideoDownloadException) error).reason
-                    : error instanceof java.net.SocketTimeoutException
-                    || error.getCause() instanceof java.net.SocketTimeoutException ? "network_timeout" : "unknown",
-                    "media_download", error.getMessage(), error.getCause() != null ? error.getCause() : error, null,
-                    error instanceof VideoDownloadException ? ((VideoDownloadException) error).httpStatus : null, null));
+            videoCreative.getResolutionListener().creativeFailed(downloadFailure(error));
         }
     }
 }
