@@ -61,10 +61,10 @@ public class VideoDownloadTask extends BaseNetworkTask {
                                                     retriever.extractMetadata(
                                                             MediaMetadataRetriever
                                                                     .METADATA_KEY_HAS_VIDEO))) {
-                                        throw new IOException("Downloaded file has no video");
+                                        throw new VideoDownloadException("invalid_media_response", "Downloaded file has no video", (Integer) null);
                                     }
                                 } catch (RuntimeException e) {
-                                    throw new IOException("Invalid downloaded video", e);
+                                    throw new VideoDownloadException("invalid_media_response", "Invalid downloaded video", e);
                                 } finally {
                                     retriever.release();
                                 }
@@ -102,10 +102,10 @@ public class VideoDownloadTask extends BaseNetworkTask {
             path = lease == null ? null : lease.file.getAbsolutePath();
         }
         if (result == null || result.getException() != null || path == null) {
-            listener.onFileDownloadError(
+            listener.onFileDownloadException(
                     result == null || result.getException() == null
-                            ? "Video unavailable"
-                            : result.getException().getMessage());
+                            ? new IOException("Video unavailable")
+                            : result.getException());
         } else listener.onFileDownloaded(path);
     }
 

@@ -233,12 +233,12 @@ final class VideoFileCache {
                     // Do not retain a representation through an unvalidated redirect mapping.
                     reusable = false;
                     connection.disconnect();
-                } else throw new IOException("Video HTTP status " + status);
+                } else throw new VideoDownloadException("http_error", "Video HTTP request failed", status);
             }
             expires = serverExpiry(connection.getHeaderFields(), requestTime, responseTime);
             long expected = connection.getContentLength();
             if (expected <= 0 || expected > MAX_FILE_SIZE)
-                throw new IOException("Invalid video content length");
+                throw new VideoDownloadException(expected > MAX_FILE_SIZE ? "media_too_large" : "invalid_media_response", "Invalid video content length", (Integer) null);
             long received = 0;
             try (InputStream in = connection.getInputStream();
                     OutputStream out = new FileOutputStream(temporary)) {
@@ -248,11 +248,11 @@ final class VideoFileCache {
                     if (job.cancelled) throw new InterruptedIOException("Video request cancelled");
                     received += count;
                     if (received > expected || received > MAX_FILE_SIZE)
-                        throw new IOException("Video exceeds declared length");
+                        throw new VideoDownloadException(received > MAX_FILE_SIZE ? "media_too_large" : "invalid_media_response", "Video exceeds declared length", (Integer) null);
                     out.write(buffer, 0, count);
                 }
             }
-            if (received != expected) throw new IOException("Truncated video");
+            if (received != expected) throw new VideoDownloadException("invalid_media_response", "Truncated video", (Integer) null);
             validator.validate(temporary);
             synchronized (this) {
                 if (job.cancelled) throw new InterruptedIOException("Video request cancelled");
@@ -266,7 +266,7 @@ final class VideoFileCache {
                 temporary = null;
             }
         } catch (IOException | RuntimeException e) {
-            job.error = new IOException("Video download failed", e);
+            job.error = e instanceof IOException ? (IOException) e : new IOException("Video download failed", e);
         } finally {
             if (job.connection != null) job.connection.disconnect();
             if (temporary != null) temporary.delete();

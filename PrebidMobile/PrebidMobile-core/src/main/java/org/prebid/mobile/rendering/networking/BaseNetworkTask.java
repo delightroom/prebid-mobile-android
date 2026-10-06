@@ -365,13 +365,15 @@ public class BaseNetworkTask
                     readResponse(((HttpURLConnection) connection).getErrorStream())
             );
             LogUtil.error(TAG, status);
-            throw new Exception(status);
+            throw new org.prebid.mobile.daro.DaroRenderException("http_error", "unknown",
+                    "HTTP request failed", null, null, httpURLResponseCode, "http");
         }
         else {
             String error = String.format("Bad server response - [HTTP Response code of %s]", httpURLResponseCode);
             if (httpURLResponseCode == 204) error = "Response code 204. No bids.";
             LogUtil.error(TAG, error);
-            throw new Exception(error);
+            throw new org.prebid.mobile.daro.DaroRenderException("http_error", "unknown",
+                    "HTTP request failed", null, null, httpURLResponseCode, "http");
         }
         result.responseString = response;
 

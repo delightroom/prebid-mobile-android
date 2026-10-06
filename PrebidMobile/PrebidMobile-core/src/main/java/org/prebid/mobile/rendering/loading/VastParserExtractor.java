@@ -22,6 +22,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 import org.prebid.mobile.LogUtil;
 import org.prebid.mobile.api.exceptions.AdException;
+import org.prebid.mobile.daro.DaroRenderException;
 import org.prebid.mobile.rendering.errors.VastParseError;
 import org.prebid.mobile.rendering.models.internal.VastExtractorResult;
 import org.prebid.mobile.rendering.networking.BaseNetworkTask;
@@ -62,7 +63,12 @@ public class VastParserExtractor {
 
         @Override
         public void onErrorWithException(Exception e, long responseTime) {
-            failedToLoadAd(e.getMessage());
+            fail(new DaroRenderException(e instanceof DaroRenderException ? ((DaroRenderException) e).getReason()
+                    : e instanceof java.net.SocketTimeoutException ? "network_timeout" : "unknown",
+                    "vast_wrapper", e.getMessage(), e,
+                    e instanceof DaroRenderException ? ((DaroRenderException) e).getErrorCode() : null,
+                    e instanceof DaroRenderException ? ((DaroRenderException) e).getHttpStatus() : null,
+                    e instanceof DaroRenderException ? ((DaroRenderException) e).getErrorDomain() : null), 301);
         }
     };
 
@@ -96,7 +102,7 @@ public class VastParserExtractor {
         } catch (VastParseError e) {
             LogUtil.error(TAG, "AdResponseParserVast creation failed: " + Log.getStackTraceString(e));
 
-            final AdException adException = new AdException(AdException.INTERNAL_ERROR, e.getMessage());
+            final AdException adException = new DaroRenderException("invalid_vast", "vast_parse", e.getMessage(), e, 100, null, "vast");
             fail(adException, 100);
             return;
         }
@@ -112,8 +118,8 @@ public class VastParserExtractor {
             if (!latestVastWrapperParser.allowsAdditionalWrappers()
                     && !TextUtils.isEmpty(adResponseParserVast.getVastUrl())) {
                 latestVastWrapperParser.setWrapper(adResponseParserVast);
-                fail(new AdException(AdException.INTERNAL_ERROR,
-                        VASTErrorCodes.WRAPPER_LIMIT_REACH_ERROR.toString()), 302);
+                fail(new DaroRenderException("invalid_vast", "vast_wrapper",
+                        VASTErrorCodes.WRAPPER_LIMIT_REACH_ERROR.toString(), null, 302, null, "vast"), 302);
                 return;
             }
             latestVastWrapperParser.setWrapper(adResponseParserVast);
@@ -125,10 +131,8 @@ public class VastParserExtractor {
         String vastUrl = latestVastWrapperParser.getVastUrl();
         if (!TextUtils.isEmpty(vastUrl)) {
             if (vastWrapperCount >= WRAPPER_NESTING_LIMIT) {
-                final AdException adException = new AdException(
-                        AdException.INTERNAL_ERROR,
-                        VASTErrorCodes.WRAPPER_LIMIT_REACH_ERROR.toString()
-                );
+                final AdException adException = new DaroRenderException("invalid_vast", "vast_wrapper",
+                        VASTErrorCodes.WRAPPER_LIMIT_REACH_ERROR.toString(), null, 302, null, "vast");
                 fail(adException, 302);
                 vastWrapperCount = 0;
                 return;
@@ -138,8 +142,8 @@ public class VastParserExtractor {
         }
         else {
             if (adResponseParserVast.getVast().getAds().isEmpty()) {
-                fail(new AdException(AdException.INTERNAL_ERROR,
-                        VASTErrorCodes.NO_AD_IN_WRAPPER_ERROR.toString()), 303);
+                fail(new DaroRenderException("invalid_vast", "vast_wrapper",
+                        VASTErrorCodes.NO_AD_IN_WRAPPER_ERROR.toString(), null, 303, null, "vast"), 303);
                 return;
             }
             finished = true;
@@ -151,7 +155,7 @@ public class VastParserExtractor {
     private void failedToLoadAd(String msg) {
         LogUtil.error(TAG, "Invalid ad response: " + msg);
 
-        final AdException adException = new AdException(AdException.INTERNAL_ERROR, "Invalid ad response: " + msg);
+        final AdException adException = new DaroRenderException("unknown", "vast_wrapper", "Invalid ad response: " + msg, null, 301, null, "vast");
         fail(adException, 301);
     }
 

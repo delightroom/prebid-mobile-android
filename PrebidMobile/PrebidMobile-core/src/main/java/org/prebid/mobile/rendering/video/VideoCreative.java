@@ -25,6 +25,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 import org.prebid.mobile.LogUtil;
 import org.prebid.mobile.api.exceptions.AdException;
+import org.prebid.mobile.daro.DaroRenderException;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
 import org.prebid.mobile.rendering.interstitial.InterstitialManagerVideoDelegate;
 import org.prebid.mobile.rendering.listeners.CreativeViewListener;
@@ -495,6 +496,11 @@ public class VideoCreative extends VideoCreativeProtocol
 
         @Override
         public void onFileDownloadError(String error) {
+            onFileDownloadException(new java.io.IOException(error));
+        }
+
+        @Override
+        public void onFileDownloadException(Exception error) {
             VideoCreative videoCreative = weakVideoCreative.get();
             if (videoCreative == null) {
                 LogUtil.warning(TAG, "VideoCreative is null");
@@ -503,7 +509,11 @@ public class VideoCreative extends VideoCreativeProtocol
 
             if (!videoCreative.beginTerminalEvent()) return;
             videoCreative.model.trackVastError(400);
-            videoCreative.getResolutionListener().creativeFailed(new AdException(AdException.INTERNAL_ERROR, "Preloading failed: " + error));
+            videoCreative.getResolutionListener().creativeFailed(new DaroRenderException(error instanceof VideoDownloadException ? ((VideoDownloadException) error).reason
+                    : error instanceof java.net.SocketTimeoutException
+                    || error.getCause() instanceof java.net.SocketTimeoutException ? "network_timeout" : "unknown",
+                    "media_download", error.getMessage(), error.getCause() != null ? error.getCause() : error, null,
+                    error instanceof VideoDownloadException ? ((VideoDownloadException) error).httpStatus : null, null));
         }
     }
 }
