@@ -46,7 +46,8 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
     private final Runnable preparationTimeout = this::failPreparation;
 
     private void failPreparation() {
-        failVideo(new DaroRenderException("preparation_timeout", "player_prepare", "Video first frame timed out", null, null, null, null));
+        // This deadline starts before VAST loading, so it cannot identify the stalled stage.
+        failVideo(new DaroRenderException("preparation_timeout", "unknown", "Video preparation timed out", null, null, null, null));
     }
 
     private void failVideo(AdException error) {
