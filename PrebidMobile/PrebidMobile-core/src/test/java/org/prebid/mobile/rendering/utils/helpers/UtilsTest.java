@@ -19,12 +19,14 @@ package org.prebid.mobile.rendering.utils.helpers;
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Point;
+import android.graphics.Rect;
 import android.os.Build;
 import android.util.DisplayMetrics;
 import android.view.Display;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
+import android.view.WindowMetrics;
 import android.widget.FrameLayout;
 import androidx.test.filters.Suppress;
 import junit.framework.TestCase;
@@ -307,6 +309,112 @@ public class UtilsTest extends TestCase {
         setFinalStatic(Build.VERSION.class.getField("SDK_INT"), 17);
 
         assertThat(Utils.getScreenHeight(mockWindowManager), equalTo(2001));
+    }
+
+    @Test
+    @Config(sdk = 30)
+    public void testGetScreenSizeUsesMaximumWindowMetricsFromSdkInt30() {
+        WindowManager mockWindowManager = mock(WindowManager.class);
+        WindowMetrics mockMaximumWindowMetrics = mock(WindowMetrics.class);
+
+        when(mockMaximumWindowMetrics.getBounds()).thenReturn(new Rect(0, 0, 2200, 2001));
+        when(mockWindowManager.getMaximumWindowMetrics()).thenReturn(mockMaximumWindowMetrics);
+
+        assertThat(Utils.getScreenWidth(mockWindowManager), equalTo(2200));
+        assertThat(Utils.getScreenHeight(mockWindowManager), equalTo(2001));
+        verify(mockWindowManager, never()).getCurrentWindowMetrics();
+        verify(mockWindowManager, never()).getDefaultDisplay();
+    }
+
+    @Test
+    @Config(sdk = 30)
+    public void testGetWindowSizeUsesCurrentWindowMetricsFromSdkInt30() {
+        WindowManager mockWindowManager = mock(WindowManager.class);
+        WindowMetrics mockCurrentWindowMetrics = mock(WindowMetrics.class);
+
+        when(mockCurrentWindowMetrics.getBounds()).thenReturn(new Rect(0, 0, 1100, 1001));
+        when(mockWindowManager.getCurrentWindowMetrics()).thenReturn(mockCurrentWindowMetrics);
+
+        assertThat(Utils.getWindowWidth(mockWindowManager), equalTo(1100));
+        assertThat(Utils.getWindowHeight(mockWindowManager), equalTo(1001));
+        verify(mockWindowManager, never()).getMaximumWindowMetrics();
+        verify(mockWindowManager, never()).getDefaultDisplay();
+    }
+
+    @Test
+    @Config(sdk = 30)
+    public void testSplitWindowKeepsPhysicalScreenSizeAndShrinksWindowSize() {
+        WindowManager mockWindowManager = mock(WindowManager.class);
+        WindowMetrics maximumMetrics = mock(WindowMetrics.class);
+        WindowMetrics currentMetrics = mock(WindowMetrics.class);
+
+        when(maximumMetrics.getBounds()).thenReturn(new Rect(0, 0, 1080, 2400));
+        when(currentMetrics.getBounds()).thenReturn(new Rect(0, 1200, 1080, 2400));
+        when(mockWindowManager.getMaximumWindowMetrics()).thenReturn(maximumMetrics);
+        when(mockWindowManager.getCurrentWindowMetrics()).thenReturn(currentMetrics);
+
+        assertThat(Utils.getScreenWidth(mockWindowManager), equalTo(1080));
+        assertThat(Utils.getScreenHeight(mockWindowManager), equalTo(2400));
+        assertThat(Utils.getWindowWidth(mockWindowManager), equalTo(1080));
+        assertThat(Utils.getWindowHeight(mockWindowManager), equalTo(1200));
+    }
+
+    @Test
+    @Config(sdk = 30)
+    public void testRotationIsReflectedInScreenAndWindowSize() {
+        WindowManager portrait = windowManagerWithMetrics(new Rect(0, 0, 1080, 2400), new Rect(0, 0, 1080, 2300));
+        WindowManager landscape = windowManagerWithMetrics(new Rect(0, 0, 2400, 1080), new Rect(0, 0, 2300, 1080));
+
+        assertThat(Utils.getScreenWidth(portrait), equalTo(1080));
+        assertThat(Utils.getScreenHeight(portrait), equalTo(2400));
+        assertThat(Utils.getWindowWidth(portrait), equalTo(1080));
+        assertThat(Utils.getWindowHeight(portrait), equalTo(2300));
+
+        assertThat(Utils.getScreenWidth(landscape), equalTo(2400));
+        assertThat(Utils.getScreenHeight(landscape), equalTo(1080));
+        assertThat(Utils.getWindowWidth(landscape), equalTo(2300));
+        assertThat(Utils.getWindowHeight(landscape), equalTo(1080));
+    }
+
+    private static WindowManager windowManagerWithMetrics(Rect maximumBounds, Rect currentBounds) {
+        WindowManager windowManager = mock(WindowManager.class);
+        WindowMetrics maximumMetrics = mock(WindowMetrics.class);
+        WindowMetrics currentMetrics = mock(WindowMetrics.class);
+
+        when(maximumMetrics.getBounds()).thenReturn(maximumBounds);
+        when(currentMetrics.getBounds()).thenReturn(currentBounds);
+        when(windowManager.getMaximumWindowMetrics()).thenReturn(maximumMetrics);
+        when(windowManager.getCurrentWindowMetrics()).thenReturn(currentMetrics);
+        return windowManager;
+    }
+
+    @Test
+    @Config(sdk = 29)
+    public void testWindowSizeFallsBackToDisplaySizeBeforeSdkInt30() {
+        WindowManager mockWindowManager = mock(WindowManager.class);
+        Display mockDisplay = mock(Display.class);
+
+        when(mockWindowManager.getDefaultDisplay()).thenReturn(mockDisplay);
+        doAnswer(invocation -> {
+            Point size = (Point) invocation.getArguments()[0];
+            size.x = 1100;
+            size.y = 2001;
+            return null;
+        }).when(mockDisplay).getRealSize(any(Point.class));
+
+        assertThat(Utils.getScreenWidth(mockWindowManager), equalTo(1100));
+        assertThat(Utils.getScreenHeight(mockWindowManager), equalTo(2001));
+        assertThat(Utils.getWindowWidth(mockWindowManager), equalTo(1100));
+        assertThat(Utils.getWindowHeight(mockWindowManager), equalTo(2001));
+    }
+
+    @Test
+    @Config(sdk = 30)
+    public void testGetScreenAndWindowSizeReturnsZeroWithoutWindowManager() {
+        assertThat(Utils.getScreenWidth(null), equalTo(0));
+        assertThat(Utils.getScreenHeight(null), equalTo(0));
+        assertThat(Utils.getWindowWidth(null), equalTo(0));
+        assertThat(Utils.getWindowHeight(null), equalTo(0));
     }
 
     @Test
