@@ -35,6 +35,7 @@ import androidx.media3.common.util.Util;
 import org.prebid.mobile.LogUtil;
 import org.prebid.mobile.core.R;
 import org.prebid.mobile.api.exceptions.AdException;
+import org.prebid.mobile.daro.DaroRenderException;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
 import org.prebid.mobile.rendering.listeners.VideoCreativeViewListener;
 import org.prebid.mobile.rendering.video.vast.VASTErrorCodes;
@@ -55,6 +56,7 @@ public class ExoPlayerView extends FrameLayout implements VideoPlayerView {
 
     private long vastVideoDuration = -1;
     private boolean preparingStillFrame;
+    private boolean playerPrepared;
     private boolean stillFrameMode;
     private boolean playbackRequested;
     private boolean bannerPlaybackCompleted;
@@ -77,10 +79,8 @@ public class ExoPlayerView extends FrameLayout implements VideoPlayerView {
         @Override
         public void onPlayerError(PlaybackException error) {
             stillFrameReady = null;
-            videoCreativeViewListener.onFailure(new AdException(
-                    AdException.INTERNAL_ERROR,
-                    VASTErrorCodes.MEDIA_DISPLAY_ERROR.toString()
-            ));
+            videoCreativeViewListener.onFailure(new DaroRenderException("player_error", playerPrepared ? "unknown" : "player_prepare", "Video player failed", error,
+                    error.errorCode, null, "media3"));
         }
 
         @Override
@@ -91,6 +91,7 @@ public class ExoPlayerView extends FrameLayout implements VideoPlayerView {
             }
             switch (playbackState) {
                 case Player.STATE_READY:
+                    playerPrepared = true;
                     if (preparingStillFrame || ((stillFrameMode || isDaroFullscreenVideo()) && !playbackRequested)) {
                         player.setPlayWhenReady(false);
                         return;
@@ -145,10 +146,8 @@ public class ExoPlayerView extends FrameLayout implements VideoPlayerView {
     /** Prepares a visible first frame without starting playback or VAST playback tracking. */
     public void prepareStillFrame(@NonNull Runnable onReady) {
         if (videoUri == null) {
-            videoCreativeViewListener.onFailure(new AdException(
-                    AdException.INTERNAL_ERROR,
-                    VASTErrorCodes.MEDIA_DISPLAY_ERROR.toString()
-            ));
+            videoCreativeViewListener.onFailure(new DaroRenderException("player_error", "player_prepare", "Video URI unavailable", null,
+                    null, null, "media3"));
             return;
         }
         preparingStillFrame = true;

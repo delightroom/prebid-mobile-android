@@ -22,4 +22,8 @@ public interface FileDownloadListener extends BaseResponseHandler {
     void onFileDownloaded(String path);
 
     void onFileDownloadError(String error);
+
+    default void onFileDownloadException(Exception error) {
+        onFileDownloadError(error.getMessage());
+    }
 }

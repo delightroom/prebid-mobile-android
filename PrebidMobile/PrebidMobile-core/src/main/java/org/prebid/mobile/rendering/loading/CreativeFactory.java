@@ -24,6 +24,7 @@ import org.prebid.mobile.LogUtil;
 import org.prebid.mobile.PrebidMobile;
 import org.prebid.mobile.api.data.AdFormat;
 import org.prebid.mobile.api.exceptions.AdException;
+import org.prebid.mobile.daro.DaroRenderException;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
 import org.prebid.mobile.rendering.listeners.CreativeResolutionListener;
 import org.prebid.mobile.rendering.models.AbstractCreative;
@@ -100,7 +101,8 @@ public class CreativeFactory {
         } catch (Exception exception) {
             String message = "Creative Factory failed: " + exception.getMessage();
             LogUtil.error(TAG, message + Log.getStackTraceString(exception));
-            AdException adException = new AdException(AdException.INTERNAL_ERROR, message);
+            AdException adException = exception instanceof AdException ? (AdException) exception
+                    : new DaroRenderException("unknown", "unknown", message, exception, null, null, null);
             listener.onFailure(adException);
         }
     }
@@ -156,10 +158,8 @@ public class CreativeFactory {
         VideoCreativeModel videoCreativeModel = (VideoCreativeModel) creativeModel;
         String mediaUrl = videoCreativeModel.getMediaUrl();
         if (Utils.isBlank(mediaUrl) || mediaUrl.equals("invalid media file")) {
-            listener.onFailure(new AdException(
-                AdException.INTERNAL_ERROR,
-                VASTErrorCodes.NO_SUPPORTED_MEDIA_ERROR.toString()
-            ));
+            listener.onFailure(new DaroRenderException("no_supported_media", "vast_parse",
+                VASTErrorCodes.NO_SUPPORTED_MEDIA_ERROR.toString(), null, 403, null, "vast"));
             return;
         }
 
@@ -210,7 +210,7 @@ public class CreativeFactory {
         timeoutHandler.postDelayed(() -> {
             if (timeoutState != TimeoutState.FINISHED) {
                 timeoutState = TimeoutState.EXPIRED;
-                listener.onFailure((new AdException(AdException.INTERNAL_ERROR, "Creative factory Timeout")));
+                listener.onFailure((new DaroRenderException("preparation_timeout", "unknown", "Creative factory Timeout", null, null, null, null)));
             }
         }, timeout);
     }
@@ -249,7 +249,7 @@ public class CreativeFactory {
                 return;
             }
             if (creativeFactory.timeoutState == TimeoutState.EXPIRED) {
-                creativeFactory.listener.onFailure(new AdException(AdException.INTERNAL_ERROR, "Creative Timeout"));
+                creativeFactory.listener.onFailure(new DaroRenderException("preparation_timeout", "unknown", "Creative Timeout", null, null, null, null));
                 LogUtil.warning(TAG, "Creative timed out, backing out");
                 return;
             }

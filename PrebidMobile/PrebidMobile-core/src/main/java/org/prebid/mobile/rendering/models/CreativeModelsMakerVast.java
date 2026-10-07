@@ -21,6 +21,7 @@ import androidx.annotation.VisibleForTesting;
 import org.prebid.mobile.LogUtil;
 import org.prebid.mobile.api.data.AdFormat;
 import org.prebid.mobile.api.exceptions.AdException;
+import org.prebid.mobile.daro.DaroRenderException;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
 import org.prebid.mobile.rendering.errors.VastParseError;
 import org.prebid.mobile.rendering.loading.AdLoadListener;
@@ -113,7 +114,8 @@ public class CreativeModelsMakerVast extends CreativeModelsMaker {
             String mediaUrl = latestVastWrapperParser.getMediaFileUrl(latestVastWrapperParser, 0);
             if (Utils.isBlank(mediaUrl)) {
                 VastErrorTracker.fire(rootVastParser.getErrorUrls(), 403);
-                notifyErrorListener(VASTErrorCodes.NO_SUPPORTED_MEDIA_ERROR.toString());
+                listener.onFailedToLoadAd(new DaroRenderException("no_supported_media", "vast_parse",
+                        VASTErrorCodes.NO_SUPPORTED_MEDIA_ERROR.toString(), null, 403, null, "vast"), adLoaderIdentifier);
                 return;
             }
             final String vastClickThroughUrl = rootVastParser.getClickThroughUrl(rootVastParser, 0);
@@ -273,7 +275,8 @@ public class CreativeModelsMakerVast extends CreativeModelsMaker {
         } catch (Exception e) {
             LogUtil.error(TAG, "Video failed with: " + e.getMessage());
             VastErrorTracker.fire(rootVastParser.getErrorUrls(), 400);
-            notifyErrorListener("Video failed: " + e.getMessage());
+            listener.onFailedToLoadAd(new DaroRenderException("invalid_vast", "vast_parse",
+                    "Video model creation failed", e, null, null, "vast"), adLoaderIdentifier);
         }
     }
 
