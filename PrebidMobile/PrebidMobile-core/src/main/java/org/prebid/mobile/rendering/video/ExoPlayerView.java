@@ -217,7 +217,7 @@ public class ExoPlayerView extends FrameLayout implements VideoPlayerView {
     @Override
     public void pause() {
         LogUtil.debug(TAG, "Called pause");
-        if (preparingStillFrame) {
+        if (preparingStillFrame || (stillFrameMode && !playbackRequested)) {
             return;
         }
         if (player != null) {

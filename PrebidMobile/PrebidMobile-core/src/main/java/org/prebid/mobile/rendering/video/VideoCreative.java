@@ -26,6 +26,7 @@ import androidx.annotation.VisibleForTesting;
 import org.prebid.mobile.LogUtil;
 import org.prebid.mobile.api.exceptions.AdException;
 import org.prebid.mobile.daro.DaroRenderException;
+import org.prebid.mobile.daro.DaroBannerCompanionModel;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
 import org.prebid.mobile.rendering.interstitial.InterstitialManagerVideoDelegate;
 import org.prebid.mobile.rendering.listeners.CreativeViewListener;
@@ -195,7 +196,8 @@ public class VideoCreative extends VideoCreativeProtocol
 
     @Override
     public void pause() {
-        if (videoCreativeView != null && videoCreativeView.isPlaying()) {
+        if (videoCreativeView != null && (videoCreativeView.isPlaying()
+                || DaroBannerCompanionModel.isInBanner(model.getAdConfiguration()))) {
             videoCreativeView.pause();
         }
     }

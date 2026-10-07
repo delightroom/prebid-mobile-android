@@ -132,18 +132,68 @@ public class VideoViewTest {
         verify(mockVideoViewListener, never()).onDisplayed(videoView);
     }
 
-    @Test
-    public void inBannerStillFrameEnablesClickOnlyWhenPlaybackStarts() {
+    private VideoCreativeView.VideoPlayerClickInterceptor prepareCellularBanner() {
         videoView.setPrepareStillFrame(true);
         videoView.setVideoPlayerClick(true);
-        VideoCreativeView creative = mock(VideoCreativeView.class);
+        videoView.setPlaybackAllowed(false);
         changeVideoViewState(PLAYBACK_NOT_STARTED);
+        VideoCreativeView creative = mock(VideoCreativeView.class);
         adViewManagerListener.viewReadyForImmediateDisplay(creative);
-        verify(creative, never()).enableVideoPlayerClick();
+        org.mockito.ArgumentCaptor<VideoCreativeView.VideoPlayerClickInterceptor> click =
+            org.mockito.ArgumentCaptor.forClass(VideoCreativeView.VideoPlayerClickInterceptor.class);
+        verify(creative).enableVideoPlayerClick(click.capture());
+        visibilityTrackerListener.onVisibilityChanged(VISIBLE_RESULT);
+        return click.getValue();
+    }
 
-        changeVideoViewState(PLAYING);
-        adViewManagerListener.viewReadyForImmediateDisplay(creative);
-        verify(creative).enableVideoPlayerClick();
+    @Test
+    public void cellularTapStartsWithoutClickthroughAndRetainsIntentAfterVisibilityChange() {
+        VideoCreativeView.VideoPlayerClickInterceptor click = prepareCellularBanner();
+        verify(mockAdViewManager, never()).show();
+        org.junit.Assert.assertTrue(click.consumeClick());
+        verify(mockAdViewManager).show();
+        org.junit.Assert.assertFalse(click.consumeClick());
+        verify(mockVideoViewListener, never()).onClickThroughOpened(videoView);
+
+        visibilityTrackerListener.onVisibilityChanged(INVISIBLE_RESULT);
+        verify(mockAdViewManager).pause();
+        org.junit.Assert.assertTrue(click.consumeClick());
+        verify(mockAdViewManager, never()).resume();
+        visibilityTrackerListener.onVisibilityChanged(VISIBLE_RESULT);
+        verify(mockAdViewManager).resume();
+        verify(mockAdViewManager, times(1)).show();
+    }
+
+    @Test
+    public void tapResumesWifiAutoplayPausedOnCellular() {
+        VideoCreativeView.VideoPlayerClickInterceptor click = prepareCellularBanner();
+        videoView.setPlaybackAllowed(true);
+        verify(mockAdViewManager).show();
+        videoView.setPlaybackAllowed(false);
+        verify(mockAdViewManager).pause();
+        org.junit.Assert.assertTrue(click.consumeClick());
+        verify(mockAdViewManager).resume();
+        org.junit.Assert.assertFalse(click.consumeClick());
+    }
+
+    @Test
+    public void completedBannerKeepsClickthroughAvailable() {
+        VideoCreativeView.VideoPlayerClickInterceptor click = prepareCellularBanner();
+        changeVideoViewState(PLAYBACK_FINISHED);
+        org.junit.Assert.assertFalse(click.consumeClick());
+    }
+
+    @Test
+    public void newCreativeAndDestroyClearManualPlaybackIntent() {
+        VideoCreativeView.VideoPlayerClickInterceptor click = prepareCellularBanner();
+        org.junit.Assert.assertTrue(click.consumeClick());
+        videoView.loadAd(new AdUnitConfiguration(), "<VAST/>");
+        changeVideoViewState(PLAYBACK_NOT_STARTED);
+        visibilityTrackerListener.onVisibilityChanged(VISIBLE_RESULT);
+        verify(mockAdViewManager, times(1)).show();
+        videoView.destroy();
+        org.junit.Assert.assertTrue(click.consumeClick());
+        verify(mockAdViewManager, times(1)).show();
     }
 
     @Test

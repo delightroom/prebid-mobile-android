@@ -74,6 +74,16 @@ public class VideoCreativeTest {
     }
 
     @Test
+    public void builtInVideoPauseReachesPlayerBeforePlaybackIsReady() {
+        when(mockModel.getAdConfiguration().isBuiltInVideo()).thenReturn(true);
+        when(mockModel.getAdConfiguration().getPlacementTypeValue()).thenReturn(
+            org.prebid.mobile.rendering.models.PlacementType.IN_BANNER.getValue());
+        when(mockVideoCreativeView.isPlaying()).thenReturn(false);
+        videoCreative.pause();
+        verify(mockVideoCreativeView).pause();
+    }
+
+    @Test
     public void displayTest() throws Exception {
         VideoCreative spyVideoCreative = spy(videoCreative);
 

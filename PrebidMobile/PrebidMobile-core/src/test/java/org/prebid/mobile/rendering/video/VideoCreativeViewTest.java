@@ -51,6 +51,27 @@ public class VideoCreativeViewTest {
     }
 
     @Test
+    public void playbackRequestConsumesTapBeforeClickTracking() {
+        videoCreativeView.enableVideoPlayerClick(() -> true);
+        videoCreativeView.performClick();
+        Mockito.verifyNoInteractions(mockCreative);
+    }
+
+    @Test
+    public void unconsumedTapKeepsClickTracking() {
+        videoCreativeView.enableVideoPlayerClick(() -> false);
+        videoCreativeView.performClick();
+        verify(mockCreative).onEvent(VideoAdEvent.Event.AD_CLICK);
+    }
+
+    @Test
+    public void ordinaryVideoTapKeepsClickTracking() {
+        videoCreativeView.enableVideoPlayerClick();
+        videoCreativeView.performClick();
+        verify(mockCreative).onEvent(VideoAdEvent.Event.AD_CLICK);
+    }
+
+    @Test
     public void startTest() throws IllegalAccessException {
         VideoPlayerView mockPlugPlayView = mock(ExoPlayerView.class);
         WhiteBox.field(VideoCreativeView.class, "exoPlayerView").set(videoCreativeView, mockPlugPlayView);
