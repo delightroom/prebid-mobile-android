@@ -60,6 +60,7 @@ public class VideoView extends BaseAdView {
     private boolean enableAutoPlay = true;
     private boolean prepareStillFrame;
     private boolean playbackAllowed = true;
+    private boolean userInitiatedPlayback;
     private boolean visibleForPlayback;
     private boolean destroyed;
 
@@ -158,6 +159,7 @@ public class VideoView extends BaseAdView {
         AdUnitConfiguration adUnitConfiguration,
         BidResponse bidResponse
     ) {
+        userInitiatedPlayback = false;
         adViewManager.loadBidTransaction(adUnitConfiguration, bidResponse);
     }
 
@@ -166,6 +168,8 @@ public class VideoView extends BaseAdView {
         String vastXml
     ) {
         if (prepareStillFrame) adConfiguration.setIsMuted(true);
+        userInitiatedPlayback = false;
+        visibleForPlayback = false;
         stopVisibilityTracking();
         changeState(State.UNDEFINED);
 
@@ -175,6 +179,7 @@ public class VideoView extends BaseAdView {
     @Override
     public void destroy() {
         destroyed = true;
+        userInitiatedPlayback = false;
         super.destroy();
         stopVisibilityTracking();
 
@@ -235,7 +240,7 @@ public class VideoView extends BaseAdView {
     }
 
     public void resume() {
-        if (prepareStillFrame && (!playbackAllowed || !visibleForPlayback || destroyed)) return;
+        if (prepareStillFrame && (!isPlaybackAllowed() || !visibleForPlayback || destroyed)) return;
         if (!canResume()) {
             LogUtil.debug(TAG, "resume() can't resume " + videoViewState);
             return;
@@ -246,7 +251,7 @@ public class VideoView extends BaseAdView {
     }
 
     public void play() {
-        if (prepareStillFrame && (!playbackAllowed || !visibleForPlayback || destroyed)) return;
+        if (prepareStillFrame && (!isPlaybackAllowed() || !visibleForPlayback || destroyed)) return;
         if (!canPlay()) {
             LogUtil.debug(TAG, "play() can't play " + videoViewState);
             return;
@@ -306,8 +311,12 @@ public class VideoView extends BaseAdView {
     private void showVideoCreative(View view) {
         VideoCreativeView videoCreativeView = (VideoCreativeView) view;
 
-        if (enableVideoPlayerClick && (!prepareStillFrame || isInState(State.PLAYING))) {
-            videoCreativeView.enableVideoPlayerClick();
+        if (enableVideoPlayerClick) {
+            if (prepareStillFrame) {
+                videoCreativeView.enableVideoPlayerClick(this::handleBannerPlaybackClick);
+            } else {
+                videoCreativeView.enableVideoPlayerClick();
+            }
         }
         if (!prepareStillFrame) videoCreativeView.showVolumeControls();
         addVideoControlObstruction(videoCreativeView.getVolumeControlView(), "Volume button");
@@ -391,7 +400,7 @@ public class VideoView extends BaseAdView {
     }
 
     private void updatePlaybackVisibility() {
-        final boolean isVisible = visibleForPlayback && (!prepareStillFrame || playbackAllowed) && !destroyed;
+        final boolean isVisible = visibleForPlayback && (!prepareStillFrame || isPlaybackAllowed()) && !destroyed;
 
         if (isVisible && canPlay()) {
             play();
@@ -403,7 +412,7 @@ public class VideoView extends BaseAdView {
     }
 
     private void handlePlaybackBasedOnVisibility(boolean isVisible) {
-        if (prepareStillFrame) isVisible = isVisible && playbackAllowed && !destroyed;
+        if (prepareStillFrame) isVisible = isVisible && isPlaybackAllowed() && !destroyed;
         if (!isVisible && canPause()) {
             adViewManager.pause();
             changeState(State.PAUSED_AUTO);
@@ -413,6 +422,20 @@ public class VideoView extends BaseAdView {
             changeState(State.PLAYING);
             LogUtil.debug(TAG, "handleVisibilityChange: auto resume " + videoViewState);
         }
+    }
+
+    private boolean isPlaybackAllowed() {
+        return playbackAllowed || userInitiatedPlayback;
+    }
+
+    private boolean handleBannerPlaybackClick() {
+        if (destroyed || !visibleForPlayback) return true;
+        if (canPlay() || isInState(State.PAUSED_AUTO)) {
+            userInitiatedPlayback = true;
+            updatePlaybackVisibility();
+            return true;
+        }
+        return !isInState(State.PLAYING) && !isInState(State.PLAYBACK_FINISHED);
     }
 
     private void changeState(State undefined) {

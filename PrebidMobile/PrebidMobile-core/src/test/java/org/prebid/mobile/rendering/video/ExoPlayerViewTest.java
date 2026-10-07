@@ -206,6 +206,23 @@ public class ExoPlayerViewTest {
     }
 
     @Test
+    public void stillFrameStartPausedBeforeReadyDoesNotPlayInBackground() throws Exception {
+        useRealViewForPlayerCallbacks();
+        exoPlayerView.setVideoUri(Uri.EMPTY);
+        exoPlayerView.prepareStillFrame(() -> {});
+        Player.Listener events = (Player.Listener) WhiteBox.field(ExoPlayerView.class, "eventListener").get(exoPlayerView);
+        events.onRenderedFirstFrame();
+        exoPlayerView.start(0);
+        exoPlayerView.pause();
+        exoPlayerView.pause();
+        events.onPlaybackStateChanged(Player.STATE_READY);
+        verify(mockExoPlayer, never()).setPlayWhenReady(true);
+        verify(mockVideoCreative, times(1)).onEvent(VideoAdEvent.Event.AD_PAUSE);
+        exoPlayerView.resume();
+        verify(mockExoPlayer).setPlayWhenReady(true);
+    }
+
+    @Test
     public void prepareStillFrameWithoutMedia_ReportsFailure() throws Exception {
         useRealViewForPlayerCallbacks();
         Runnable ready = mock(Runnable.class);

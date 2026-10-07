@@ -167,7 +167,19 @@ public class VideoCreativeView extends RelativeLayout {
     }
 
     public void enableVideoPlayerClick() {
-        setOnClickListener(view -> handleCallToActionClick());
+        enableVideoPlayerClick(null);
+    }
+
+    public interface VideoPlayerClickInterceptor {
+        boolean consumeClick();
+    }
+
+    public void enableVideoPlayerClick(VideoPlayerClickInterceptor interceptor) {
+        setOnClickListener(view -> {
+            if (interceptor == null || !interceptor.consumeClick()) {
+                handleCallToActionClick();
+            }
+        });
     }
 
     public boolean isPlaying() {
