@@ -168,13 +168,17 @@ public class Transaction {
     }
 
     public void stopOmAdSession() {
+        finishCurrentOmAdSession();
+        omAdSessionManager = null;
+    }
+
+    public void finishCurrentOmAdSession() {
         if (omAdSessionManager == null) {
             LogUtil.error(TAG, "Failed to stopOmAdSession. OmAdSessionManager is null");
             return;
         }
 
         omAdSessionManager.stopAdSession();
-        omAdSessionManager = null;
     }
 
     public List<CreativeFactory> getCreativeFactories() {

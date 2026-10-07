@@ -244,6 +244,7 @@ public class CreativeModelsMakerVast extends CreativeModelsMaker {
 
                 Tracking creativeViewTracking = AdResponseParserVast.findTracking(companionAd.getTrackingEvents());
                 if (creativeViewTracking != null && Utils.isNotBlank(creativeViewTracking.getValue())) {
+                    endCardModel.setImpressionUrl(creativeViewTracking.getValue());
                     ArrayList<String> creativeViewTrackingUrls = new ArrayList<>();
                     creativeViewTrackingUrls.add(creativeViewTracking.getValue());
                     endCardModel.registerTrackingEvent(TrackingEvent.Events.IMPRESSION, creativeViewTrackingUrls);

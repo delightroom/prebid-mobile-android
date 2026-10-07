@@ -369,6 +369,13 @@ public class AdViewManagerTest {
 
         listenerCaptor.getValue().onEvent(DialogEventListener.EventType.SHOWN);
 
+        Transaction transaction = mockTransactionManager.getCurrentTransaction();
+        AbstractCreative endCard = transaction.getCreativeFactories().get(1).getCreative();
+        org.mockito.InOrder omOrder = inOrder(transaction, mockVideoCreative, endCard);
+        omOrder.verify(transaction).finishCurrentOmAdSession();
+        omOrder.verify(mockVideoCreative).destroy();
+        omOrder.verify(endCard).createOmAdSession();
+        omOrder.verify(endCard).trackAdLoaded();
         verify(mockAdView).hideInterstitialVideo();
         verify(mockAdViewListener).videoCreativePlaybackFinished();
         verify(mockAdViewListener).adCompleted();

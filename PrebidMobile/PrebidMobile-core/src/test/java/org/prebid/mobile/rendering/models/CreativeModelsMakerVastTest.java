@@ -436,5 +436,7 @@ public class CreativeModelsMakerVastTest {
                      trackingURLs.get(TrackingEvent.Events.CLICK).get(0));
         assertEquals("http://myTrackingURL/firstCompanionCreativeView",
                      trackingURLs.get(TrackingEvent.Events.IMPRESSION).get(0));
+        // CreativeFactory rebuilds the HTML impression list from this field.
+        assertEquals("http://myTrackingURL/firstCompanionCreativeView", endCardModel.getImpressionUrl());
     }
 }
