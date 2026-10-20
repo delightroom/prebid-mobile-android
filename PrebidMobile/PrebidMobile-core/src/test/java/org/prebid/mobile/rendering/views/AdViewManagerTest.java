@@ -41,6 +41,7 @@ import org.prebid.mobile.rendering.models.CreativeModelsMaker;
 import org.prebid.mobile.rendering.models.HTMLCreative;
 import org.prebid.mobile.rendering.interstitial.DialogEventListener;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardManager;
+import org.prebid.mobile.rendering.models.internal.InternalFriendlyObstruction;
 import org.prebid.mobile.rendering.models.internal.InternalPlayerState;
 import org.prebid.mobile.rendering.networking.tracking.TrackingManager;
 import org.prebid.mobile.rendering.video.*;
@@ -442,6 +443,36 @@ public class AdViewManagerTest {
         verify(onEndCardShown).run();
         verify(rewardListener, never()).run();
         assertFalse(rewardManager.getUserRewardedAlready());
+    }
+
+    @Test
+    public void friendlyObstruction_RegistersWithDisplayedEndCardNotTheDestroyedVideo() throws Exception {
+        AdViewManager.AdViewManagerInterstitialDelegate delegate = captureInterstitialDelegate();
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setDaroFullscreenRenderer(true);
+        configuration.setRewarded(true);
+        mockVideoCreativeWithConfiguration(configuration);
+        TransactionManager transactions = mockTransactionWithEndCard();
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, transactions);
+        WhiteBox.field(AdViewManager.class, "adConfiguration").set(adViewManager, configuration);
+        WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, mockAdView);
+        WhiteBox.field(AdViewManager.class, "currentCreative").set(adViewManager, mockVideoCreative);
+        HTMLCreative endCard = (HTMLCreative) transactions.getCurrentTransaction()
+                .getCreativeFactories().get(1).getCreative();
+        android.view.View videoButton = new android.view.View(context);
+        android.view.View endCardButton = new android.view.View(context);
+
+        delegate.addFriendlyObstruction(videoButton, "AdChoices");
+        assertTrue(delegate.handleVideoInterstitialClose(mock(Runnable.class)));
+        delegate.addFriendlyObstruction(endCardButton, "AdChoices");
+
+        ArgumentCaptor<InternalFriendlyObstruction> videoCaptor = ArgumentCaptor.forClass(InternalFriendlyObstruction.class);
+        verify(mockVideoCreative).addOmFriendlyObstruction(videoCaptor.capture());
+        assertSame(videoButton, videoCaptor.getValue().getView());
+        ArgumentCaptor<InternalFriendlyObstruction> endCardCaptor = ArgumentCaptor.forClass(InternalFriendlyObstruction.class);
+        verify(endCard).addOmFriendlyObstruction(endCardCaptor.capture());
+        assertSame(endCardButton, endCardCaptor.getValue().getView());
+        assertEquals("AdChoices", endCardCaptor.getValue().getDetailedDescription());
     }
 
     @Test

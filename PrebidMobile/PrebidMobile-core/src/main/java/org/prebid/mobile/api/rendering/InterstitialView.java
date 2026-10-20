@@ -22,6 +22,7 @@ import android.content.res.Configuration;
 import android.util.Log;
 import android.view.View;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import org.prebid.mobile.AdSize;
 import org.prebid.mobile.LogUtil;
@@ -29,6 +30,7 @@ import org.prebid.mobile.api.data.AdFormat;
 import org.prebid.mobile.api.exceptions.AdException;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
 import org.prebid.mobile.core.R;
+import org.prebid.mobile.daro.DaroPrebidDialogListener;
 import org.prebid.mobile.rendering.bidding.data.bid.BidResponse;
 import org.prebid.mobile.rendering.bidding.interfaces.InterstitialViewListener;
 import org.prebid.mobile.rendering.interstitial.DialogEventListener;
@@ -224,6 +226,10 @@ public class InterstitialView extends BaseAdView {
 
     public void setInterstitialViewListener(InterstitialViewListener listener) {
         this.listener = listener;
+    }
+
+    public void setDaroDialogListener(@Nullable DaroPrebidDialogListener dialogListener) {
+        interstitialManager.setDaroDialogListener(dialogListener);
     }
 
     @Override

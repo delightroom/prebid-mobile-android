@@ -17,12 +17,15 @@
 package org.prebid.mobile.rendering.views.interstitial;
 
 import android.app.Activity;
+import android.app.Dialog;
 import android.content.Context;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
+import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import org.prebid.mobile.LogUtil;
+import org.prebid.mobile.daro.DaroPrebidDialogListener;
 import org.prebid.mobile.api.rendering.InterstitialView;
 import org.prebid.mobile.api.rendering.VideoView;
 import org.prebid.mobile.configuration.AdUnitConfiguration;
@@ -46,6 +49,7 @@ public class InterstitialManager implements InterstitialManagerInterface {
     private InterstitialDisplayPropertiesInternal interstitialDisplayProperties = new InterstitialDisplayPropertiesInternal();
     private AdInterstitialDialog interstitialDialog;
     private WeakReference<Activity> daroPresentationActivity = new WeakReference<>(null);
+    @Nullable private DaroPrebidDialogListener daroDialogListener;
 
     private InterstitialManagerDisplayDelegate interstitialDisplayDelegate;
     private InterstitialManagerVideoDelegate interstitialVideoDelegate;
@@ -61,6 +65,22 @@ public class InterstitialManager implements InterstitialManagerInterface {
 
     public void setDaroPresentationActivity(Activity activity) {
         daroPresentationActivity = new WeakReference<>(activity);
+    }
+
+    public void setDaroDialogListener(@Nullable DaroPrebidDialogListener listener) {
+        daroDialogListener = listener;
+    }
+
+    @Nullable
+    public View notifyDaroDialogShown(Dialog dialog) {
+        DaroPrebidDialogListener listener = daroDialogListener;
+        return listener != null ? listener.dialogShown(dialog) : null;
+    }
+
+    public void registerDaroFriendlyObstruction(View view, String description) {
+        if (adViewManagerInterstitialDelegate != null) {
+            adViewManagerInterstitialDelegate.addFriendlyObstruction(view, description);
+        }
     }
 
     public void configureInterstitialProperties(AdUnitConfiguration adConfiguration) {
@@ -138,6 +158,7 @@ public class InterstitialManager implements InterstitialManagerInterface {
     public void destroy() {
         dismissInterstitialAfterFailure();
         daroPresentationActivity.clear();
+        daroDialogListener = null;
         if (interstitialDisplayProperties != null) {
             //reset all these for new ads to honour their own creative details
             interstitialDisplayProperties.resetExpandValues();

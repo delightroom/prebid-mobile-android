@@ -531,6 +531,12 @@ public abstract class AdBaseDialog extends Dialog {
                 adBaseDialog.addSkipView();
             }
 
+            View adChoice = adBaseDialog.interstitialManager.notifyDaroDialogShown(adBaseDialog);
+            if (adChoice != null && !(adBaseDialog instanceof InterstitialVideo)) {
+                // The video dialog registers it from InterstitialView's SHOWN handling; HTML and end-card
+                // dialogs have no such path, so register this dialog's control with the current session here.
+                adBaseDialog.interstitialManager.registerDaroFriendlyObstruction(adChoice, "AdChoices");
+            }
             adBaseDialog.interstitialManager.interstitialDialogShown(adBaseDialog.adViewContainer);
             final DialogEventListener listener = adBaseDialog.listener;
 

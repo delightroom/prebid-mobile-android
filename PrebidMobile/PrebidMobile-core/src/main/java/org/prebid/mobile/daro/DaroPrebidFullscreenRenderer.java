@@ -150,6 +150,10 @@ public final class DaroPrebidFullscreenRenderer implements DaroPrebidRenderHandl
         clickThroughUrl = url;
     }
 
+    public void setDialogListener(@Nullable DaroPrebidDialogListener dialogListener) {
+        interstitialView.setDaroDialogListener(dialogListener);
+    }
+
     public void renderVast(@NonNull String vastXml, int width, int height, boolean rewarded) {
         if (destroyed) {
             return;
