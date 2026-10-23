@@ -24,6 +24,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
@@ -41,6 +42,7 @@ import org.prebid.mobile.rendering.models.CreativeModelsMaker;
 import org.prebid.mobile.rendering.models.HTMLCreative;
 import org.prebid.mobile.rendering.interstitial.DialogEventListener;
 import org.prebid.mobile.rendering.interstitial.rewarded.RewardManager;
+import org.prebid.mobile.rendering.models.internal.InternalFriendlyObstruction;
 import org.prebid.mobile.rendering.models.internal.InternalPlayerState;
 import org.prebid.mobile.rendering.networking.tracking.TrackingManager;
 import org.prebid.mobile.rendering.video.*;
@@ -442,6 +444,36 @@ public class AdViewManagerTest {
         verify(onEndCardShown).run();
         verify(rewardListener, never()).run();
         assertFalse(rewardManager.getUserRewardedAlready());
+    }
+
+    @Test
+    public void friendlyObstruction_RegistersWithDisplayedEndCardNotTheDestroyedVideo() throws Exception {
+        AdViewManager.AdViewManagerInterstitialDelegate delegate = captureInterstitialDelegate();
+        AdUnitConfiguration configuration = new AdUnitConfiguration();
+        configuration.setDaroFullscreenRenderer(true);
+        configuration.setRewarded(true);
+        mockVideoCreativeWithConfiguration(configuration);
+        TransactionManager transactions = mockTransactionWithEndCard();
+        WhiteBox.field(AdViewManager.class, "transactionManager").set(adViewManager, transactions);
+        WhiteBox.field(AdViewManager.class, "adConfiguration").set(adViewManager, configuration);
+        WhiteBox.field(AdViewManager.class, "adView").set(adViewManager, mockAdView);
+        WhiteBox.field(AdViewManager.class, "currentCreative").set(adViewManager, mockVideoCreative);
+        HTMLCreative endCard = (HTMLCreative) transactions.getCurrentTransaction()
+                .getCreativeFactories().get(1).getCreative();
+        android.view.View videoButton = new android.view.View(context);
+        android.view.View endCardButton = new android.view.View(context);
+
+        delegate.addFriendlyObstruction(videoButton, "AdChoices");
+        assertTrue(delegate.handleVideoInterstitialClose(mock(Runnable.class)));
+        delegate.addFriendlyObstruction(endCardButton, "AdChoices");
+
+        ArgumentCaptor<InternalFriendlyObstruction> videoCaptor = ArgumentCaptor.forClass(InternalFriendlyObstruction.class);
+        verify(mockVideoCreative).addOmFriendlyObstruction(videoCaptor.capture());
+        assertSame(videoButton, videoCaptor.getValue().getView());
+        ArgumentCaptor<InternalFriendlyObstruction> endCardCaptor = ArgumentCaptor.forClass(InternalFriendlyObstruction.class);
+        verify(endCard).addOmFriendlyObstruction(endCardCaptor.capture());
+        assertSame(endCardButton, endCardCaptor.getValue().getView());
+        assertEquals("AdChoices", endCardCaptor.getValue().getDetailedDescription());
     }
 
     @Test
@@ -871,6 +903,78 @@ public class AdViewManagerTest {
         adViewManager.onFetchingCompleted(mockTransaction);
         verify(mockCreative).createOmAdSession();
         verify(mockAdViewListener).adLoaded(any(AdDetails.class));
+    }
+
+    @Test
+    public void persistentObstruction_IsAppliedRightAfterEachNewSessionIsCreated() {
+        View button = new View(context);
+        adViewManager.setDaroPersistentObstruction(button, "AdChoices");
+        AbstractCreative first = mock(AbstractCreative.class);
+        AbstractCreative second = mock(AbstractCreative.class);
+
+        adViewManager.onFetchingCompleted(transactionOf(first));
+        adViewManager.onFetchingCompleted(transactionOf(second));
+
+        for (AbstractCreative creative : new AbstractCreative[]{first, second}) {
+            InOrder order = inOrder(creative);
+            order.verify(creative).createOmAdSession();
+            ArgumentCaptor<InternalFriendlyObstruction> captor = ArgumentCaptor.forClass(InternalFriendlyObstruction.class);
+            order.verify(creative).addOmFriendlyObstruction(captor.capture());
+            assertSame(button, captor.getValue().getView());
+            assertEquals("AdChoices", captor.getValue().getDetailedDescription());
+            assertEquals(InternalFriendlyObstruction.Purpose.OTHER, captor.getValue().getPurpose());
+        }
+    }
+
+    @Test
+    public void persistentObstruction_SetAfterSessionStartedReachesTheLiveSessionOncePerView() {
+        AbstractCreative creative = mock(AbstractCreative.class);
+        adViewManager.onFetchingCompleted(transactionOf(creative));
+        verify(creative, never()).addOmFriendlyObstruction(any());
+        View button = new View(context);
+        View other = new View(context);
+
+        adViewManager.setDaroPersistentObstruction(button, "AdChoices");
+        adViewManager.setDaroPersistentObstruction(button, "AdChoices");
+        verify(creative, times(1)).addOmFriendlyObstruction(any());
+
+        adViewManager.setDaroPersistentObstruction(other, "AdChoices");
+        ArgumentCaptor<InternalFriendlyObstruction> captor = ArgumentCaptor.forClass(InternalFriendlyObstruction.class);
+        verify(creative, times(2)).addOmFriendlyObstruction(captor.capture());
+        assertSame(button, captor.getAllValues().get(0).getView());
+        assertSame(other, captor.getAllValues().get(1).getView());
+    }
+
+    @Test
+    public void persistentObstruction_IsNotAppliedToStaleOrDestroyedSessionsOrAfterClearing() {
+        View button = new View(context);
+        AbstractCreative stale = mock(AbstractCreative.class);
+        adViewManager.onFetchingCompleted(transactionOf(stale));
+        adViewManager.resetTransactionState();
+        adViewManager.setDaroPersistentObstruction(button, "AdChoices");
+        verify(stale, never()).addOmFriendlyObstruction(any());
+
+        adViewManager.setDaroPersistentObstruction(null, null);
+        AbstractCreative cleared = mock(AbstractCreative.class);
+        adViewManager.onFetchingCompleted(transactionOf(cleared));
+        verify(cleared, never()).addOmFriendlyObstruction(any());
+
+        adViewManager.setDaroPersistentObstruction(button, "AdChoices");
+        verify(cleared).addOmFriendlyObstruction(any());
+        adViewManager.destroy();
+        adViewManager.setDaroPersistentObstruction(new View(context), "AdChoices");
+        verify(cleared, times(1)).addOmFriendlyObstruction(any());
+    }
+
+    private Transaction transactionOf(AbstractCreative creative) {
+        Transaction transaction = mock(Transaction.class);
+        CreativeFactory factory = mock(CreativeFactory.class);
+        when(factory.getCreative()).thenReturn(creative);
+        List<CreativeFactory> factories = new ArrayList<>();
+        factories.add(factory);
+        when(transaction.getTransactionState()).thenReturn("state");
+        when(transaction.getCreativeFactories()).thenReturn(factories);
+        return transaction;
     }
 
     private void mockVideoCreativeWithConfiguration(AdUnitConfiguration configuration) {

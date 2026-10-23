@@ -21,6 +21,7 @@ import android.os.Build;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
+import androidx.annotation.Nullable;
 import org.prebid.mobile.LogUtil;
 import org.prebid.mobile.api.data.AdFormat;
 import org.prebid.mobile.api.exceptions.AdException;
@@ -69,11 +70,16 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
     private ViewGroup adView;
     private AdViewManagerListener adViewListener;
     private AbstractCreative currentCreative;
+    // The end card is shown through the interstitial display delegate; currentCreative still points at the video.
+    private AbstractCreative displayedEndCardCreative;
     private AbstractCreative lastCreativeShown;
     private DaroBannerCompanionCreative bannerCompanion;
     private boolean bannerVideoCompleted;
     private boolean bannerCompanionShown;
     private VideoCreativeModel bannerVideoModel;
+    // Host control (AdChoices) that must be a friendly obstruction of every OM session this manager creates.
+    @Nullable private InternalFriendlyObstruction daroPersistentObstruction;
+    private boolean daroOmSessionLive;
 
     private AdViewManagerInterstitialDelegate delegate = new AdViewManagerInterstitialDelegate() {
         @Override
@@ -89,6 +95,15 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
         @Override
         public boolean handleVideoInterstitialSkip(Runnable onEndCardShown) {
             return handleDaroFullscreenVideoSkip(onEndCardShown);
+        }
+
+        @Override
+        public void addFriendlyObstruction(View view, String description) {
+            AbstractCreative target = displayedEndCardCreative != null ? displayedEndCardCreative : currentCreative;
+            if (target != null) {
+                target.addOmFriendlyObstruction(
+                        new InternalFriendlyObstruction(view, InternalFriendlyObstruction.Purpose.OTHER, description));
+            }
         }
     };
 
@@ -223,6 +238,8 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
 
     public void resetTransactionState() {
         lifecycleGeneration++;
+        daroOmSessionLive = false;
+        displayedEndCardCreative = null;
         destroyBannerCompanion();
         hide();
         transactionManager.resetState();
@@ -276,6 +293,9 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
 
     public void destroy() {
         lifecycleGeneration++;
+        daroOmSessionLive = false;
+        daroPersistentObstruction = null;
+        displayedEndCardCreative = null;
         destroyBannerCompanion();
         if (transactionManager != null) {
             transactionManager.destroy();
@@ -395,6 +415,28 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
         }
     }
 
+    /**
+     * Keeps one host-owned view registered as a friendly obstruction of this manager's OM session. It is
+     * applied to the session being created for each transaction, and immediately when a session is already
+     * live. Passing null forgets the view for later sessions.
+     */
+    public void setDaroPersistentObstruction(@Nullable View view, @Nullable String description) {
+        InternalFriendlyObstruction previous = daroPersistentObstruction;
+        if (previous != null && previous.getView() == view) {
+            return;
+        }
+        daroPersistentObstruction = view == null
+                ? null
+                : new InternalFriendlyObstruction(view, InternalFriendlyObstruction.Purpose.OTHER, description);
+        applyDaroPersistentObstruction();
+    }
+
+    private void applyDaroPersistentObstruction() {
+        if (daroPersistentObstruction != null && daroOmSessionLive && currentCreative != null) {
+            currentCreative.addOmFriendlyObstruction(daroPersistentObstruction);
+        }
+    }
+
     public void show() {
         if (isPlaying()) {
             LogUtil.debug(TAG, "Video already playing. Ignoring new start.");
@@ -485,6 +527,7 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
                 interstitialManager.displayVideoAdViewInInterstitial(contextReference.get(), adView);
             } else {
                 interstitialManager.setInterstitialDisplayDelegate(endCardCreative);
+                displayedEndCardCreative = endCardCreative;
                 interstitialManager.displayAdViewInInterstitial(contextReference.get(), adView);
             }
         }
@@ -553,6 +596,7 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
 
         HTMLCreative endCardCreative = (HTMLCreative) transaction.getCreativeFactories().get(1).getCreative();
         interstitialManager.setInterstitialDisplayDelegate(endCardCreative);
+        displayedEndCardCreative = endCardCreative;
         try {
             interstitialManager.displayAdViewInInterstitial(contextReference.get(), adView, eventType -> {
                 if (eventType == DialogEventListener.EventType.SHOWN && onEndCardShown != null) {
@@ -735,6 +779,8 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
         if (!creativeFactories.isEmpty()) {
             currentCreative = creativeFactories.get(0).getCreative();
             currentCreative.createOmAdSession();
+            daroOmSessionLive = true;
+            applyDaroPersistentObstruction();
         }
         if (DaroBannerCompanionModel.isInBanner(adConfiguration)
                 && currentCreative != null && currentCreative.getCreativeModel() instanceof VideoCreativeModel) {
@@ -770,6 +816,9 @@ public class AdViewManager implements CreativeViewListener, CreativeImpressionLi
 
     public interface AdViewManagerInterstitialDelegate {
         void showInterstitial();
+
+        default void addFriendlyObstruction(View view, String description) {
+        }
 
         default boolean handleVideoInterstitialClose(Runnable onEndCardShown) {
             return false;
