@@ -40,6 +40,9 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
     private boolean destroyed;
     private boolean impressionSent;
     private boolean videoFailed;
+    private boolean htmlRendering;
+    @Nullable private View adChoiceObstruction;
+    private static final String ADCHOICE_DESCRIPTION = "AdChoices";
     private final Handler handler = new Handler(Looper.getMainLooper());
     private ConnectivityManager connectivityManager;
     private ConnectivityManager.NetworkCallback networkCallback;
@@ -139,6 +142,23 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
         clickThroughUrl = url;
     }
 
+    /**
+     * Registers the host's AdChoices control as an OM friendly obstruction of whichever session measures
+     * the creative: the inner video's for VAST, this renderer's for HTML. Call before rendering so the
+     * view is applied as the session is created; later calls reach the live session.
+     */
+    public void setAdChoiceObstruction(@Nullable View view) {
+        if (destroyed) {
+            return;
+        }
+        adChoiceObstruction = view;
+        if (videoView != null) {
+            videoView.setDaroPersistentObstruction(view, ADCHOICE_DESCRIPTION);
+        } else if (htmlRendering) {
+            adViewManager.setDaroPersistentObstruction(view, ADCHOICE_DESCRIPTION);
+        }
+    }
+
     public void renderHtml(@NonNull String html, int width, int height) {
         if (destroyed) {
             return;
@@ -167,6 +187,8 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
         result.loaderIdentifier = "daro-display";
         result.creativeModels = Collections.singletonList(model);
 
+        htmlRendering = true;
+        adViewManager.setDaroPersistentObstruction(adChoiceObstruction, ADCHOICE_DESCRIPTION);
         adViewManager.loadCreativeModels(adConfiguration, result);
     }
 
@@ -225,6 +247,8 @@ public final class DaroPrebidBannerRenderer implements DaroPrebidRenderHandle {
             videoView = view;
             observeNetwork();
             handler.postDelayed(preparationTimeout, 30000);
+            // The video's own AdViewManager owns the OM session, so the control must be handed to it before loading.
+            view.setDaroPersistentObstruction(adChoiceObstruction, ADCHOICE_DESCRIPTION);
             view.loadAd(adConfiguration, vastXml);
         } catch (AdException exception) {
             failVideo(exception);

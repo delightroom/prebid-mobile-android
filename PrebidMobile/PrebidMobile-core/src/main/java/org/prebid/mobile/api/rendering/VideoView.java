@@ -198,6 +198,11 @@ public class VideoView extends BaseAdView {
         }
     }
 
+    /** Registers a host-owned view with this video's OM session, including the one created by the next load. */
+    public void setDaroPersistentObstruction(View view, String description) {
+        adViewManager.setDaroPersistentObstruction(view, description);
+    }
+
     public void setVideoViewListener(VideoViewListener listener) {
         this.listener = listener;
     }
