@@ -68,7 +68,7 @@ public class MraidUtilsTest {
         assertTrue(MraidUtils.isFeatureSupported(feature));
 
         feature = "location";
-        assertTrue(MraidUtils.isFeatureSupported(feature));
+        assertFalse(MraidUtils.isFeatureSupported(feature));
 
         feature = "vpaid";
         assertFalse(MraidUtils.isFeatureSupported(feature));

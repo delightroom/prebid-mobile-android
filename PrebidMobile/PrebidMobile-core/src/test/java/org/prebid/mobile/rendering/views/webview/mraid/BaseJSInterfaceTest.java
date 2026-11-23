@@ -35,12 +35,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.prebid.mobile.rendering.views.webview.mraid.JSInterface.DEVICE_ORIENTATION;
 import static org.prebid.mobile.rendering.views.webview.mraid.JSInterface.DEVICE_ORIENTATION_LOCKED;
-import static org.prebid.mobile.rendering.views.webview.mraid.JSInterface.LOCATION_ACCURACY;
 import static org.prebid.mobile.rendering.views.webview.mraid.JSInterface.LOCATION_ERROR;
-import static org.prebid.mobile.rendering.views.webview.mraid.JSInterface.LOCATION_LASTFIX;
-import static org.prebid.mobile.rendering.views.webview.mraid.JSInterface.LOCATION_LAT;
-import static org.prebid.mobile.rendering.views.webview.mraid.JSInterface.LOCATION_LON;
-import static org.prebid.mobile.rendering.views.webview.mraid.JSInterface.LOCATION_TYPE;
 import static org.robolectric.Shadows.shadowOf;
 import static org.robolectric.annotation.LooperMode.Mode.LEGACY;
 
@@ -458,7 +453,7 @@ public class BaseJSInterfaceTest {
     }
 
     @Test
-    public void whenGetLocationAndLocationAvailable_ReturnLocationJson() throws JSONException {
+    public void whenGetLocationWithPermissionAndLastKnownFix_ReturnError() {
         ShadowActivity shadowActivity = shadowOf(testActivity);
         shadowActivity.grantPermissions("android.permission.ACCESS_FINE_LOCATION");
 
@@ -472,14 +467,8 @@ public class BaseJSInterfaceTest {
         shadowLocationManager.setLastKnownLocation("gps", location);
         ManagersResolver.getInstance().prepare(testActivity);
 
-        JSONObject locationJson = new JSONObject();
-        locationJson.put(LOCATION_LAT, 1.0);
-        locationJson.put(LOCATION_LON, 2.0);
-        locationJson.put(LOCATION_TYPE, 1);
-        locationJson.put(LOCATION_ACCURACY, 3F);
-        locationJson.put(LOCATION_LASTFIX, (long) 4);
-
-        assertEquals(locationJson.toString(), spyBaseJSInterface.getLocation());
+        // The DARO fork never exposes device location to creatives.
+        assertEquals(LOCATION_ERROR, spyBaseJSInterface.getLocation());
     }
 
     @Test

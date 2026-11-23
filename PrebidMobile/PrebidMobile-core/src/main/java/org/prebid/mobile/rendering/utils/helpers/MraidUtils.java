@@ -37,7 +37,7 @@ public class MraidUtils {
             case "inlineVideo":
                 return true;
             case "location":
-                return ManagersResolver.getInstance().getDeviceManager().hasGps();
+                return false;
             case "vpaid":
                 return false;
             default:

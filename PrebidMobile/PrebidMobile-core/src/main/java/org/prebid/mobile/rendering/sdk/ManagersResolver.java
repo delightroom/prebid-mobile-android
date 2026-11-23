@@ -21,7 +21,7 @@ import android.content.Context;
 import org.prebid.mobile.rendering.sdk.deviceData.managers.ConnectionInfoManager;
 import org.prebid.mobile.rendering.sdk.deviceData.managers.DeviceInfoImpl;
 import org.prebid.mobile.rendering.sdk.deviceData.managers.DeviceInfoManager;
-import org.prebid.mobile.rendering.sdk.deviceData.managers.LastKnownLocationInfoManager;
+import org.prebid.mobile.rendering.sdk.deviceData.managers.DisabledLocationInfoManager;
 import org.prebid.mobile.rendering.sdk.deviceData.managers.LocationInfoManager;
 import org.prebid.mobile.rendering.sdk.deviceData.managers.NetworkConnectionInfoManager;
 import org.prebid.mobile.rendering.sdk.deviceData.managers.UserConsentManager;
@@ -67,7 +67,7 @@ public class ManagersResolver {
         }
 
         if (locationManager == null) {
-            locationManager = new LastKnownLocationInfoManager(context);
+            locationManager = new DisabledLocationInfoManager();
         }
 
         if (connectionManager == null) {
