@@ -29,10 +29,12 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.prebid.mobile.PrebidMobile;
 import org.prebid.mobile.TargetingParams;
+import org.prebid.mobile.reflection.Reflection;
 import org.prebid.mobile.reflection.sdk.ManagersResolverReflection;
 import org.prebid.mobile.rendering.models.openrtb.BidRequest;
 import org.prebid.mobile.rendering.models.openrtb.bidRequests.devices.Geo;
 import org.prebid.mobile.rendering.sdk.ManagersResolver;
+import org.prebid.mobile.rendering.sdk.deviceData.managers.LastKnownLocationInfoManager;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.shadows.ShadowActivity;
@@ -43,11 +45,12 @@ public class GeoLocationParameterBuilderTest {
 
     private final Double LATITUDE = 1.0;
     private final Double LONGITUDE = -1.0;
+    private Activity robolectricActivity;
 
     @Before
     public void setUp() throws Exception {
         PrebidMobile.setShareGeoLocation(true);
-        Activity robolectricActivity = Robolectric.buildActivity(Activity.class).create().get();
+        robolectricActivity = Robolectric.buildActivity(Activity.class).create().get();
         ShadowActivity shadowActivity = shadowOf(robolectricActivity);
         shadowActivity.grantPermissions("android.permission.ACCESS_FINE_LOCATION");
 
@@ -61,6 +64,22 @@ public class GeoLocationParameterBuilderTest {
         ManagersResolver resolver = ManagersResolver.getInstance();
         ManagersResolverReflection.resetManagers(resolver);
         resolver.prepare(robolectricActivity);
+        // The DARO fork never reads location by default; inject the upstream
+        // reader to keep covering the builder's own logic.
+        Reflection.setVariableTo(resolver, "locationManager", new LastKnownLocationInfoManager(robolectricActivity));
+    }
+
+    @Test
+    public void testPreparedResolverDoesNotSendGeoEvenWhenSharingIsEnabled() throws Exception {
+        ManagersResolver resolver = ManagersResolver.getInstance();
+        ManagersResolverReflection.resetManagers(resolver);
+        resolver.prepare(robolectricActivity);
+
+        GeoLocationParameterBuilder builder = new GeoLocationParameterBuilder();
+        AdRequestInput adRequestInput = new AdRequestInput();
+        builder.appendBuilderParameters(adRequestInput);
+
+        assertEquals(new Geo().getJsonObject().toString(), adRequestInput.getBidRequest().getDevice().getGeo().getJsonObject().toString());
     }
 
     @Test
