@@ -2,7 +2,7 @@ ext {
     prebidSdkVersionName = "3.3.1"
     prebidSdkMinVersion = 23
     prebidSdkTargetVersion = 34
-    prebidSdkCompileVersion = 35
+    prebidSdkCompileVersion = 36
     prebidSdkBuildToolsVersion = "35.0.1"
 
     artifactGroupId = "org.prebid"
